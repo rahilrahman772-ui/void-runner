@@ -173,7 +173,39 @@
   @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}}
 
   ::selection{ background:transparent; }
-</style>
+<style>
+#mobileControls{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}
+#mobileStick{position:absolute;left:18px;bottom:24px;width:118px;height:118px;border:2px solid rgba(47,230,255,.35);border-radius:50%;background:rgba(5,10,20,.28);pointer-events:auto;touch-action:none}
+#mobileKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px;border-radius:50%;background:rgba(47,230,255,.25);border:1px solid rgba(47,230,255,.7);box-shadow:0 0 18px rgba(47,230,255,.25)}
+.mobileBtn{position:absolute;width:68px;height:68px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(8,12,24,.62);color:#eaf6ff;font:11px "Consolas",monospace;pointer-events:auto;touch-action:none}
+#mobileFire{right:24px;bottom:30px;border-color:rgba(255,47,158,.65);color:#ff8bc7}
+#mobileBoost{right:104px;bottom:102px;border-color:rgba(255,183,3,.65);color:#ffd66b}
+#mobileUp{right:24px;bottom:112px}
+#mobileDown{right:104px;bottom:182px}
+#mobileHint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font:9px "Consolas",monospace;color:rgba(207,228,245,.65);letter-spacing:.08em}
+@media (max-width:800px),(pointer:coarse){
+  #mobileControls{display:block}
+  #crosshair{opacity:.7}
+  #gpuStats{display:none}
+  #minimapWrap{transform:scale(.82);transform-origin:top left}
+  .bar-track,.xp-track{width:110px}
+  #score{font-size:18px}
+  #topRight{right:10px;font-size:10px}
+  #weaponHud{right:10px;bottom:78px}
+  .overlay{padding:14px;gap:12px}
+  .panel{max-width:94vw;padding:15px}
+  .settings-grid{grid-template-columns:1fr}
+  .controls-grid{font-size:11px}
+  .hint.desktopOnly{display:none}
+}
+@media (max-width:520px){
+  h1.title{font-size:30px}
+  .subtitle{font-size:10px}
+  .qbtn{min-width:110px;padding:9px 11px}
+  #minimapLabel,#minimapWrap{left:10px}
+  #hpRow,#boostRow,#levelHud{left:10px}
+}
+</style></style>
 </head>
 <body>
 
@@ -305,6 +337,14 @@
   <button id="resumeBtn" style="pointer-events:auto;cursor:pointer; padding:14px 46px; font:14px/1 'Consolas',monospace; letter-spacing:.18em; text-transform:uppercase; color:#04141a; font-weight:700; background:linear-gradient(90deg,#2fe6ff,#8fffe0); border:none; border-radius:2px; box-shadow:0 0 30px rgba(47,230,255,.35);">Resume</button>
 </div>
 
+<div id="mobileControls" aria-label="Touch controls">
+  <div id="mobileStick"><div id="mobileKnob"></div></div>
+  <button id="mobileFire" class="mobileBtn">FIRE</button>
+  <button id="mobileBoost" class="mobileBtn">BOOST</button>
+  <button id="mobileUp" class="mobileBtn">UP</button>
+  <button id="mobileDown" class="mobileBtn">DOWN</button>
+  <div id="mobileHint">DRAG LEFT STICK TO FLY • DRAG SCREEN TO AIM</div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
@@ -866,35 +906,56 @@ function killAsteroid(index, scored){
 
 /* ================= Drones (enemies) ================= */
 let drones = [];
-function buildDroneMesh(){
-  const g = new THREE.Group();
-  const coreGeo = new THREE.OctahedronGeometry(0.9, 0);
-  const coreMat = new THREE.MeshStandardMaterial({ color:0x3a1010, emissive:0xff2f2f, emissiveIntensity:0.7, metalness:0.6, roughness:0.35 });
-  const core = new THREE.Mesh(coreGeo, coreMat);
-  core.castShadow = true;
-  g.add(core);
-  const ringGeo = new THREE.TorusGeometry(1.25, 0.07, 8, 16);
-  const ringMat = new THREE.MeshStandardMaterial({ color:0x220a0a, emissive:0xff6a3a, emissiveIntensity:0.5, metalness:0.7, roughness:0.3 });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.rotation.x = Math.PI/2.3;
-  g.add(ring);
-  return g;
+const ENEMY_CLASSES={
+  scout:{color:0x35e7ff,shape:'tetra',hp:2,speed:1.65,range:38,damage:8,fire:1.55,score:18,xp:10},
+  fighter:{color:0xff4d68,shape:'diamond',hp:4,speed:1.0,range:48,damage:12,fire:1.2,score:28,xp:10},
+  tank:{color:0xffa62b,shape:'box',hp:12,speed:.52,range:58,damage:18,fire:1.75,score:55,xp:30},
+  sniper:{color:0xb66cff,shape:'ring',hp:5,speed:.42,range:105,damage:20,fire:2.25,score:65,xp:30},
+  interceptor:{color:0x55ff9a,shape:'wing',hp:6,speed:1.28,range:34,damage:15,fire:1.0,score:48,xp:30},
+  bomber:{color:0xff7b2f,shape:'sphere',hp:8,speed:.68,range:72,damage:24,fire:2.0,score:70,xp:30}
+};
+function enemyClassForWave(w){
+  const pool=['scout','fighter'];
+  if(w>=2)pool.push('interceptor');
+  if(w>=3)pool.push('tank');
+  if(w>=4)pool.push('sniper');
+  if(w>=5)pool.push('bomber');
+  return pool[(Math.random()*pool.length)|0];
 }
-function spawnDrone(wave, boss){
-  const mesh = buildDroneMesh();
-  const scale = boss ? 3.4 : 1;
-  mesh.scale.setScalar(scale);
-  mesh.position.copy(randomSpawnAround(ship.position, boss?150:100, boss?150:190));
-  scene.add(mesh);
-  drones.push({
-    mesh, boss:!!boss,
-    hp: boss ? 60 + wave*8 : 3 + Math.floor(wave*0.5),
-    maxHp: boss ? 60 + wave*8 : 3 + Math.floor(wave*0.5),
-    radius: boss ? 3.2 : 1.1,
-    fireTimer: Math.random()*1.5,
-    preferredDist: boss ? 55 : 45 + Math.random()*20,
-    contactDamage: boss ? 26 : 12,
-  });
+function buildDroneMesh(type='fighter'){
+  const spec=ENEMY_CLASSES[type]||ENEMY_CLASSES.fighter,g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:spec.color,emissive:spec.color,emissiveIntensity:.72,metalness:.65,roughness:.28});
+  let geo;
+  if(spec.shape==='tetra')geo=new THREE.TetrahedronGeometry(.95,0);
+  else if(spec.shape==='diamond')geo=new THREE.OctahedronGeometry(1,0);
+  else if(spec.shape==='box')geo=new THREE.BoxGeometry(1.5,1.5,1.5);
+  else if(spec.shape==='ring')geo=new THREE.TorusGeometry(1.0,.16,8,18);
+  else if(spec.shape==='sphere')geo=new THREE.IcosahedronGeometry(1.05,1);
+  else geo=new THREE.ConeGeometry(.9,2.0,5);
+  const core=new THREE.Mesh(geo,mat);core.castShadow=true;g.add(core);
+  if(type==='interceptor'){
+    const wingGeo=new THREE.BoxGeometry(2.8,.12,.55),w1=new THREE.Mesh(wingGeo,mat),w2=new THREE.Mesh(wingGeo,mat);
+    w1.position.x=1.15;w2.position.x=-1.15;w1.rotation.z=.18;w2.rotation.z=-.18;g.add(w1,w2);
+  } else {
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.28,.06,6,14),mat);ring.rotation.x=Math.PI/2.2;g.add(ring);
+  }
+  g.userData.enemyType=type;return g;
+}
+function spawnDrone(wave,boss){
+  const type=boss?'warden':enemyClassForWave(wave);
+  const spec=ENEMY_CLASSES[type]||{color:0xffb703,hp:60+wave*8,speed:1,range:55,damage:26,fire:.72,score:300,xp:150};
+  const mesh=type==='warden'?buildBossMesh():buildDroneMesh(type);
+  const scale=boss?3.4:1;mesh.scale.setScalar(scale);
+  mesh.position.copy(randomSpawnAround(ship.position,boss?150:100,boss?150:190));scene.add(mesh);
+  const hp=boss?60+wave*8:spec.hp+Math.floor(wave*.45);
+  drones.push({mesh,boss:!!boss,type, hp,maxHp:hp,radius:boss?3.2:1.1,fireTimer:Math.random()*1.5,
+    preferredDist:boss?55:spec.range,contactDamage:boss?26:spec.damage,speed:boss?1.15:spec.speed,score:boss?300:spec.score,xp:boss?150:spec.xp});
+}
+function buildBossMesh(){
+  const g=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:0xffb703,emissive:0xff2f2f,emissiveIntensity:1.05,metalness:.72,roughness:.22});
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(1.35,1),mat);g.add(core);
+  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(1.9+i*.25,.09,8,24),mat);r.rotation.set(i*.7,i*1.1,0);g.add(r)}
+  g.userData.enemyType='warden';return g;
 }
 function updateDrones(dt){
   for (let i=drones.length-1;i>=0;i--){
