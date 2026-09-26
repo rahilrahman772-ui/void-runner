@@ -40,6 +40,7 @@
   .bar-fill{ height:100%; }
   #hpRow{ top:16px; } #hpFill{ background:linear-gradient(90deg,#ff2f4f,#ffb703); }
   #boostRow{ top:32px; } #boostFill{ background:linear-gradient(90deg,#2fe6ff,#6cffcb); }
+  #shieldRow{top:48px}.bar-row:has(#shieldFill){top:64px} #shieldFill{background:linear-gradient(90deg,#8b5cf6,#2fe6ff)}
 
   #topRight{
     position:absolute; top:14px; right:18px; text-align:right;
@@ -610,8 +611,14 @@ const velocity = new THREE.Vector3();
 const ACCEL = 26, DAMPING = 0.90, MAX_SPEED = 34, BOOST_MULT = 1.9;
 const ARENA_RADIUS = 230;
 let boost = 100;
+let shield = 100, shieldDelay = 0;
+function maxShield(){return 100 + stats.hull*8}
+function updateShieldHud(){const el=document.getElementById('shieldFill');if(el)el.style.width=Math.max(0,Math.min(100,shield/maxShield()*100))+'%';}
 
 function updateShip(dt){
+  shieldDelay=Math.max(0,shieldDelay-dt);
+  if(shieldDelay<=0)shield=Math.min(maxShield(),shield+18*dt);
+  updateShieldHud();
   yaw += mouseYawDelta;
   yaw = ((yaw % (Math.PI*2)) + Math.PI*2) % (Math.PI*2); // wrap so it never grows unbounded
   pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch + mousePitchDelta));
@@ -966,6 +973,13 @@ function updateDrones(dt){
     const dist = Math.max(toPlayer.length(),0.001);
     const dir = toPlayer.clone().normalize();
     const oldPos = d.mesh.position.clone();
+    if(d.boss){
+      const ratio=d.hp/d.maxHp;
+      const nextPhase=ratio>0.66?1:ratio>0.33?2:3;
+      if(d.phase!==nextPhase){d.phase=nextPhase;announce('WARDEN PHASE '+nextPhase);}
+      d.preferredDist=d.phase===3?38:55;
+      d.mesh.rotation.y+=dt*(d.phase===3?1.8:.6);
+    }
 
     // Active pursuit: enemies accelerate toward the player instead of simply drifting.
     const baseSpeed = d.boss ? 15 : (19 + Math.min(wave,12)*0.7) * d.speed;
@@ -1004,6 +1018,9 @@ function updateDrones(dt){
       const aimDir = aimPoint.sub(d.mesh.position).normalize();
 
       if (d.boss){
+        // Boss phases escalate projectile patterns as its health falls.
+        const phaseSpread=d.phase===3?.24:d.phase===2?.17:.13;
+        const phaseShots=d.phase===3?7:d.phase===2?5:5;
         // Boss: aimed center shot + a small spread around the predicted player position.
         spawnEnemyBullet(d.mesh.position, aimDir, projectileSpeed);
         const spread = 0.13;
@@ -1101,10 +1118,15 @@ let bossActive = false;
 
 function damagePlayer(amount){
   if (invuln > 0) return;
-  hp -= amount;
+  shieldDelay=3.0;
+  const absorbed=Math.min(shield,amount);
+  shield-=absorbed;
+  const hullDamage=amount-absorbed;
+  hp-=hullDamage;
   modernAudioEvent('warning',Math.min(1,amount/20));
   invuln = 0.6;
   flashVignette();
+  updateShieldHud();
 }
 function registerKill(base, pos){
   combo = Math.min(6, combo+1);
@@ -1375,7 +1397,7 @@ function resetWorld(){
   velocity.set(0,0,0);
   yaw=pitch=roll=0;
   mouseYawDelta=0; mousePitchDelta=0;
-  hp=totalMaxHp();invuln=1.2;boost=totalMaxBoost();rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
+  hp=totalMaxHp();invuln=1.2;boost=totalMaxBoost();shield=maxShield();shieldDelay=0;rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
   score=0;combo=1;comboTimer=0;
   wave=1; waveTimer=0; bossActive=false;
 }
