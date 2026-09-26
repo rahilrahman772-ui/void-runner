@@ -38,9 +38,10 @@
   .bar-label{ width:34px; font-size:11px; letter-spacing:.12em; color:var(--dim); }
   .bar-track{ width:160px; height:9px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); }
   .bar-fill{ height:100%; }
-  #hpRow{ top:16px; } #hpFill{ background:linear-gradient(90deg,#ff2f4f,#ffb703); }
-  #boostRow{ top:32px; } #boostFill{ background:linear-gradient(90deg,#2fe6ff,#6cffcb); }
-  #shieldRow{top:48px}.bar-row:has(#shieldFill){top:64px} #shieldFill{background:linear-gradient(90deg,#8b5cf6,#2fe6ff)}
+  #hpRow{top:14px} #hpFill{background:linear-gradient(90deg,#ff2f4f,#ffb703)}
+  #boostRow{top:31px} #boostFill{background:linear-gradient(90deg,#2fe6ff,#6cffcb)}
+  #shieldRow{top:48px} #shieldFill{background:linear-gradient(90deg,#8b5cf6,#2fe6ff)}
+  #levelHud{top:66px}
 
   #topRight{
     position:absolute; top:14px; right:18px; text-align:right;
@@ -188,11 +189,20 @@
   #mobileControls{display:block}
   #crosshair{opacity:.7}
   #gpuStats{display:none}
-  #minimapWrap{transform:scale(.82);transform-origin:top left}
-  .bar-track,.xp-track{width:110px}
-  #score{font-size:18px}
-  #topRight{right:10px;font-size:10px}
-  #weaponHud{right:10px;bottom:78px}
+  #minimapWrap{top:102px;left:10px;transform:scale(.78);transform-origin:top left}
+  #minimapLabel{top:88px;left:10px}
+  .bar-track,.xp-track{width:112px}
+  #hpRow{top:10px}
+  #boostRow{top:27px}
+  #shieldRow{top:44px}
+  #levelHud{top:62px;left:10px}
+  #topRight{top:10px;right:10px;font-size:10px;padding:5px 8px;background:rgba(4,8,18,.55);border:1px solid rgba(47,230,255,.12);border-radius:3px}
+  #score{left:50%;bottom:156px;transform:translateX(-50%);font-size:18px;text-align:center;text-shadow:0 2px 8px #000}
+  #score span{font-size:10px}
+  #combo{left:50%;bottom:204px;transform:translateX(-50%);font-size:11px;text-shadow:0 2px 8px #000}
+  #weaponHud{right:10px;bottom:156px;padding:5px 8px;background:rgba(4,8,18,.55);border:1px solid rgba(255,255,255,.1);border-radius:3px}
+  #bossHud{top:10px;width:min(74vw,420px)}
+  #aimLock{top:calc(50% + 25px)}
   .overlay{padding:14px;gap:12px}
   .panel{max-width:94vw;padding:15px}
   .settings-grid{grid-template-columns:1fr}
@@ -203,8 +213,14 @@
   h1.title{font-size:30px}
   .subtitle{font-size:10px}
   .qbtn{min-width:110px;padding:9px 11px}
-  #minimapLabel,#minimapWrap{left:10px}
-  #hpRow,#boostRow,#levelHud{left:10px}
+  #minimapWrap{left:8px;transform:scale(.68)}
+  #minimapLabel{left:8px}
+  #hpRow,#boostRow,#shieldRow,#levelHud{left:8px}
+  #score{bottom:150px}
+  #combo{bottom:198px}
+  #weaponHud{bottom:150px}
+  #mobileStick{left:12px;bottom:18px}
+  #mobileFire{right:12px;bottom:24px}
 }
 </style></style>
 </head>
@@ -217,6 +233,7 @@
   <div id="vignette"></div>
   <div class="bar-row" id="hpRow"><div class="bar-label">HULL</div><div class="bar-track"><div class="bar-fill" id="hpFill" style="width:100%"></div></div></div>
   <div class="bar-row" id="boostRow"><div class="bar-label">BOOST</div><div class="bar-track"><div class="bar-fill" id="boostFill" style="width:0%"></div></div></div>
+  <div class="bar-row" id="shieldRow"><div class="bar-label">SHIELD</div><div class="bar-track"><div class="bar-fill" id="shieldFill" style="width:100%"></div></div></div>
   <div id="levelHud">LV <b id="levelVal">1</b> · XP <b id="xpVal">0</b>/<b id="xpNext">100</b><div class="xp-track"><div id="xpFill"></div></div></div>
 
   <div id="minimapLabel">RADAR</div>
