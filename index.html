@@ -1804,6 +1804,13 @@ document.getElementById('settingsTestVoice').addEventListener('click',()=>{ensur
 document.getElementById('settingsPauseBtn').addEventListener('click',()=>openSettings('paused'));
 document.getElementById('menuSettingsBtn').addEventListener('click',()=>openSettings('menu'));
 document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='o'){e.preventDefault();if(state==='playing')openSettings('playing');else if(state==='paused')openSettings('paused');else if(state==='menu')openSettings('menu');}});
+document.addEventListener('keydown',e=>{
+  if(e.key.toLowerCase()!=='f' || e.repeat) return;
+  const tag=document.activeElement?.tagName?.toLowerCase();
+  if(tag==='input' || tag==='textarea' || tag==='select' || document.activeElement?.isContentEditable) return;
+  e.preventDefault();
+  toggleFullscreen();
+});
 document.addEventListener('pointerdown',()=>ensureAudio(),{passive:true});
 function modernAudioEvent(type,intensity=1){if(gameSettings.dynamicAudio)beep(type,intensity);}
 
