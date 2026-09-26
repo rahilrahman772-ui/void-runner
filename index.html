@@ -848,13 +848,27 @@ function updateDrones(dt){
   for (let i=drones.length-1;i>=0;i--){
     const d = drones[i];
     const toPlayer = ship.position.clone().sub(d.mesh.position);
-    const dist = toPlayer.length();
-    const dir = toPlayer.normalize();
-    const speed=d.boss?9:13,oldPos=d.mesh.position.clone();
-    if(dist>d.preferredDist+15)d.mesh.position.addScaledVector(dir,speed*dt);
-    else if (dist < d.preferredDist - 15) d.mesh.position.addScaledVector(dir, -speed*dt*0.8);
-    d.mesh.lookAt(ship.position); d.mesh.rotation.z+=dt*(d.boss?.6:1.4);
-    d.mesh.userData.velocity=d.mesh.position.clone().sub(oldPos).multiplyScalar(1/Math.max(dt,.0001));
+    const dist = Math.max(toPlayer.length(),0.001);
+    const dir = toPlayer.clone().normalize();
+    const oldPos = d.mesh.position.clone();
+
+    // Active pursuit: enemies accelerate toward the player instead of simply drifting.
+    const baseSpeed = d.boss ? 15 : 19 + Math.min(wave,12)*0.7;
+    const chaseForce = d.boss ? 1.15 : 1.35;
+    const orbit = new THREE.Vector3(-dir.z, Math.sin(perfClock*1.7 + i)*0.22, dir.x);
+    if (dist > d.preferredDist + 10){
+      d.mesh.position.addScaledVector(dir, baseSpeed * chaseForce * dt);
+    } else if (dist < d.preferredDist - 12){
+      d.mesh.position.addScaledVector(dir, -baseSpeed * 0.65 * dt);
+    } else {
+      // Strafe around the player while keeping the nose pointed at them.
+      d.mesh.position.addScaledVector(orbit.normalize(), baseSpeed * 0.55 * dt);
+    }
+
+    // Keep enemies interested in the player's current position.
+    d.mesh.lookAt(ship.position);
+    d.mesh.rotation.z += dt * (d.boss ? 0.45 : 0.9);
+    d.mesh.userData.velocity = d.mesh.position.clone().sub(oldPos).multiplyScalar(1/Math.max(dt,.0001));
 
     if (dist < d.radius + 1.4){
       damagePlayer(d.contactDamage);
@@ -864,18 +878,30 @@ function updateDrones(dt){
     }
 
     d.fireTimer -= dt;
-    const interval = d.boss ? 0.9 : 1.7;
-    if (d.fireTimer <= 0 && dist < 170){
+    const interval = d.boss ? 0.72 : Math.max(0.95, 1.45 - Math.min(wave,10)*0.035);
+    if (d.fireTimer <= 0 && dist < 190){
       d.fireTimer = interval;
+
+      // Lead the player's movement so enemy fire is actually aimed at the ship.
+      const projectileSpeed = d.boss ? 38 : 50;
+      const travelTime = Math.min(1.25, dist / projectileSpeed);
+      const aimPoint = ship.position.clone().addScaledVector(velocity, travelTime * 0.85);
+      const aimDir = aimPoint.sub(d.mesh.position).normalize();
+
       if (d.boss){
-        const n = 10;
-        for (let k=0;k<n;k++){
-          const a = (k/n)*Math.PI*2;
-          const v = new THREE.Vector3(Math.cos(a), (Math.random()-0.5)*0.3, Math.sin(a)).normalize();
-          spawnEnemyBullet(d.mesh.position, v, 34);
+        // Boss: aimed center shot + a small spread around the predicted player position.
+        spawnEnemyBullet(d.mesh.position, aimDir, projectileSpeed);
+        const spread = 0.13;
+        for (let k=0;k<4;k++){
+          const side = new THREE.Vector3(
+            (Math.random()-0.5)*spread,
+            (Math.random()-0.5)*spread,
+            (Math.random()-0.5)*spread
+          );
+          spawnEnemyBullet(d.mesh.position, aimDir.clone().add(side).normalize(), projectileSpeed*0.9);
         }
       } else {
-        spawnEnemyBullet(d.mesh.position, dir, 46);
+        spawnEnemyBullet(d.mesh.position, aimDir, projectileSpeed);
       }
     }
   }
