@@ -896,7 +896,7 @@ function awardXP(amount){
   while(xp>=xpForLevel(level)){
     xp-=xpForLevel(level);
     level++;
-    statPoints++;
+    statPoints += 3;
     openLevelUp();
   }
 }
