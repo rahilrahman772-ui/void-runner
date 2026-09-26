@@ -676,7 +676,7 @@ async function requestLandscape(){
   catch(e){toast('Rotate the phone to landscape');}
 }
 document.addEventListener('fullscreenchange',()=>{const b=document.getElementById('settingsFullscreen');if(b)b.textContent=document.fullscreenElement?'EXIT':'ENTER';resize();});
-if(gameSettings.gyroEnabled && isTouchDevice)startGyro();
+/* Gyro is initialized after gameSettings is declared below. */
 
 function requestFlightControl(){
   if(isTouchDevice){document.getElementById('mobileControls').style.display='block';return;}
@@ -1565,6 +1565,7 @@ const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radi
 let gameSettings=Object.assign({},DEFAULT_SETTINGS);
 try{gameSettings=Object.assign({},DEFAULT_SETTINGS,JSON.parse(localStorage.getItem('voidRunnerSettings')||'{}'));}catch(e){}
 let audioCtx=null,masterGain=null,sfxGain=null,musicGain=null,musicTimer=null,musicStep=0;
+if(gameSettings.gyroEnabled && isTouchDevice) startGyro();
 function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();musicGain=audioCtx.createGain();sfxGain.connect(masterGain);musicGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;musicGain.gain.value=gameSettings.music*.34;}catch(e){}}
 function musicNote(freq,time,dur,vol,type='triangle'){
   if(!audioCtx||!musicGain||!gameSettings.music)return;
