@@ -313,6 +313,7 @@ html,body{width:100%;height:100%;overflow:hidden}
   <button id="menuShop" class="qbtn">VOID MARKET<small>persistent upgrades</small></button>
   <button id="menuAchievements" class="qbtn">ACHIEVEMENTS<small>milestones & badges</small></button>
 </div>
+<button id="menuFullscreenBtn" class="qbtn" style="min-width:180px;text-align:center;">FULLSCREEN<small>immersive cockpit mode</small></button>
 <button id="menuSettingsBtn" class="qbtn" style="min-width:180px;text-align:center;">SETTINGS<small>audio · voice · accessibility</small></button>
   <button id="playBtn">Launch</button>
   <div class="hint" id="gpuHint">detecting GPU…</div>
@@ -1678,6 +1679,7 @@ document.getElementById('setGyroSensitivity').addEventListener('input',e=>{
 });
 document.getElementById('settingsCalibrate').addEventListener('click',()=>calibrateGyro());
 document.getElementById('settingsFullscreen').addEventListener('click',()=>toggleFullscreen());
+document.getElementById('menuFullscreenBtn').addEventListener('click',()=>toggleFullscreen());
 document.getElementById('settingsOrientation').addEventListener('click',()=>requestLandscape());
 
 document.getElementById('menuMissions').addEventListener('click',()=>renderMeta('missions'));
@@ -1864,7 +1866,6 @@ function animate(){
 
 resize();
 setQuality(isTouchDevice ? 'medium' : 'high');
-if(isTouchDevice) requestLandscape();
 animate();
 
 })();
