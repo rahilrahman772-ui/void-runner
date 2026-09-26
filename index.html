@@ -146,6 +146,25 @@
   #goStats{ font-size:14px; color:#cfe4f5; line-height:1.8; }
   #goStats b{ color:var(--amber); }
 
+
+  #settings{z-index:40;overflow:auto;justify-content:flex-start;padding-top:42px;padding-bottom:42px}
+  #settingsPanel{width:min(760px,94vw);max-height:86vh;overflow:auto}
+  .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+  .setting{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.1)}
+  .setting span{font:12px/1.35 "Consolas",monospace;color:#d8edf7;text-align:left}
+  .setting small{display:block;color:var(--dim);font-size:10px;margin-top:3px}
+  .setting input[type=range]{width:150px;accent-color:var(--cyan)}
+  .setting select,.setting button{font:11px "Consolas",monospace;background:#0b1020;color:#eaf6ff;border:1px solid rgba(47,230,255,.3);padding:7px}
+  .toggle{width:46px;height:24px;border:1px solid rgba(255,255,255,.2);background:#171a25;border-radius:14px;position:relative;cursor:pointer;flex:0 0 auto}
+  .toggle::after{content:"";position:absolute;width:18px;height:18px;top:2px;left:3px;border-radius:50%;background:#667085;transition:.16s}
+  .toggle.on{background:rgba(47,230,255,.2);border-color:var(--cyan)}
+  .toggle.on::after{left:24px;background:var(--cyan);box-shadow:0 0 12px rgba(47,230,255,.7)}
+  .settings-section{margin-top:18px;text-align:left;color:var(--cyan);font:11px "Consolas",monospace;letter-spacing:.15em}
+  #subtitleBox{position:fixed;left:50%;bottom:11%;transform:translateX(-50%);z-index:35;max-width:min(760px,86vw);padding:8px 14px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.15);color:#fff;font:14px/1.4 "Segoe UI",sans-serif;text-align:center;opacity:0;transition:opacity .15s;pointer-events:none}
+  #subtitleBox.show{opacity:1}
+  #audioBadge{position:fixed;right:18px;top:110px;color:#7a86a8;font:10px "Consolas",monospace;letter-spacing:.08em;opacity:.75}
+  @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}}
+
   ::selection{ background:transparent; }
 </style>
 </head>
@@ -197,6 +216,7 @@
       <b>CLICK (hold)</b><span>fire cannons</span>
       <b>1 2 3 4</b><span>switch weapons · render quality stays in menu</span>
       <b>ESC</b><span>pause</span>
+      <b>O</b><span>settings · audio · voice · accessibility</span>
     </div>
   </div>
 
@@ -210,6 +230,7 @@
     </div>
   </div>
 
+  <button id="menuSettingsBtn" class="qbtn" style="min-width:180px;text-align:center;">SETTINGS<small>audio · voice · accessibility</small></button>
   <button id="playBtn">Launch</button>
   <div class="hint" id="gpuHint">detecting GPU…</div>
 </div>
@@ -224,6 +245,39 @@
     <button class="stat-btn" data-stat="aim"><b>SMART AIM</b><small>stronger target lock and lead assist</small></button>
   </div></div>
 
+
+<div id="settings" class="overlay hidden">
+  <h1 class="title">SETTINGS</h1>
+  <div id="settingsPanel" class="panel">
+    <div class="settings-section">AUDIO</div>
+    <div class="settings-grid">
+      <div class="setting"><span>MASTER VOLUME<small>All game audio</small></span><input id="setMaster" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>SFX VOLUME<small>Weapons, hits, UI</small></span><input id="setSfx" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>VOICE VOLUME<small>Announcer / combat callouts</small></span><input id="setVoice" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>MUSIC VOLUME<small>Reserved for adaptive soundtrack</small></span><input id="setMusic" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>VOICE EFFECT<small>Pitch/rate treatment for the announcer</small></span><select id="setVoiceEffect"><option value="clean">Clean</option><option value="command">Command</option><option value="radio">Radio</option><option value="synthetic">Synthetic</option></select></div>
+      <div class="setting"><span>ANNOUNCER VOICE<small>Browser-installed voice</small></span><select id="setVoiceLang"><option value="en">English</option><option value="auto">Auto</option></select></div>
+      <div class="setting"><span>VOICE CALLOUTS<small>Combat events + progression</small></span><button class="toggle" id="setVoiceToggle"></button></div>
+      <div class="setting"><span>DYNAMIC AUDIO<small>Combat intensity changes sound cues</small></span><button class="toggle" id="setDynamicAudio"></button></div>
+    </div>
+    <div class="settings-section">GAMEPLAY & ACCESSIBILITY</div>
+    <div class="settings-grid">
+      <div class="setting"><span>AIM ASSIST<small>Smart target lock strength</small></span><input id="setAimAssist" type="range" min="0" max="100" step="1"></div>
+      <div class="setting"><span>SCREEN SHAKE<small>Reduce combat camera movement</small></span><input id="setShake" type="range" min="0" max="100" step="1"></div>
+      <div class="setting"><span>REDUCED MOTION<small>Minimize shake and visual movement</small></span><button class="toggle" id="setReducedMotion"></button></div>
+      <div class="setting"><span>HIGH CONTRAST HUD<small>Stronger HUD readability</small></span><button class="toggle" id="setContrast"></button></div>
+      <div class="setting"><span>SUBTITLES<small>Shows spoken callouts as text</small></span><button class="toggle" id="setSubtitles"></button></div>
+      <div class="setting"><span>HIT CONFIRMATION<small>Audio + visual feedback on hits</small></span><button class="toggle" id="setHitConfirm"></button></div>
+    </div>
+    <div class="qbtns" style="margin-top:18px">
+      <button class="qbtn" id="settingsTestVoice">TEST VOICE<small>Play a sample callout</small></button>
+      <button class="qbtn" id="settingsReset">RESET SETTINGS<small>Restore recommended defaults</small></button>
+      <button class="qbtn" id="settingsClose">BACK<small>Return to previous screen</small></button>
+    </div>
+  </div>
+</div>
+<div id="subtitleBox"></div><div id="audioBadge"></div>
+
 <div id="gameover" class="overlay hidden">
   <h1 class="title" style="background:linear-gradient(90deg,#ff2f4f,var(--amber));-webkit-background-clip:text;background-clip:text;">HULL BREACH</h1>
   <div id="goStats" class="panel"></div>
@@ -233,6 +287,7 @@
 <div id="pause" class="overlay hidden">
   <h1 class="title">PAUSED</h1>
   <div class="hint">press ESC or click below to resume</div>
+  <button id="settingsPauseBtn" style="pointer-events:auto;cursor:pointer;padding:10px 26px;font:12px/1 "Consolas",monospace;letter-spacing:.12em;text-transform:uppercase;color:#cfe4f5;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);">Settings</button>
   <button id="resumeBtn" style="pointer-events:auto;cursor:pointer; padding:14px 46px; font:14px/1 'Consolas',monospace; letter-spacing:.18em; text-transform:uppercase; color:#04141a; font-weight:700; background:linear-gradient(90deg,#2fe6ff,#8fffe0); border:none; border-radius:2px; box-shadow:0 0 30px rgba(47,230,255,.35);">Resume</button>
 </div>
 
@@ -576,7 +631,7 @@ function openLevelUp(){state='levelup';if(document.pointerLockElement===canvas&&
 function applyStat(stat){if(statPoints<=0)return;stats[stat]++;statPoints--;if(stat==='hull')hp=Math.min(totalMaxHp(),hp+15);if(stat==='boost')boost=Math.min(totalMaxBoost(),boost+15);if(statPoints<=0){document.getElementById('levelup').classList.add('hidden');state='playing';requestFlightControl()}}
 document.querySelectorAll('.stat-btn').forEach(btn=>btn.addEventListener('click',()=>applyStat(btn.dataset.stat)));
 function switchWeapon(index){if(index<0||index>=WEAPONS.length)return;weaponIndex=index;document.getElementById('weaponName').textContent=WEAPONS[index].name;toast('Weapon: '+WEAPONS[index].name)}
-function findAimTarget(origin,forward){const range=260,cone=Math.max(.90,.985-stats.aim*.01);let best=null,bestScore=-Infinity;for(const d of drones){const to=d.mesh.position.clone().sub(origin),dist=to.length();if(dist>range)continue;const dot=forward.dot(to.normalize());if(dot<cone)continue;const score=dot*2-dist/range;if(score>bestScore){bestScore=score;best={entity:d,dist}}}return best}
+function findAimTarget(origin,forward){const range=260,cone=Math.max(.78,.985-(stats.aim*.01)*(gameSettings.aimAssist/100));let best=null,bestScore=-Infinity;for(const d of drones){const to=d.mesh.position.clone().sub(origin),dist=to.length();if(dist>range)continue;const dot=forward.dot(to.normalize());if(dot<cone)continue;const score=dot*2-dist/range;if(score>bestScore){bestScore=score;best={entity:d,dist}}}return best}
 function getAimDirection(){const forward=new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion).normalize(),target=findAimTarget(ship.position,forward);if(!target)return{dir:forward,target:null};const predicted=target.entity.mesh.position.clone(),t=target.dist/Math.max(1,WEAPONS[weaponIndex].speed),v=target.entity.mesh.userData.velocity;if(v)predicted.addScaledVector(v,t*(1+stats.aim*.08));return{dir:predicted.sub(ship.position).normalize(),target}}
  
 /* ================= Bullets & dynamic lights ================= */
@@ -824,7 +879,7 @@ function spawnEnemyBullet(pos, dir, speed){
 function killDrone(index, scored){
   const d = drones[index];
   burst(d.mesh.position, 0xff6a3a, d.boss?36:14);
-  if (scored) registerKill(d.boss?300:22, d.mesh.position);
+  if(scored){registerKill(d.boss?300:22,d.mesh.position);modernAudioEvent(d.boss?'warning':'hit',d.boss?1.2:.6);if(gameSettings.hitConfirm)showSubtitle(d.boss?'BOSS DESTROYED':'TARGET DESTROYED');}
   scene.remove(d.mesh);
   d.mesh.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
   drones.splice(index,1);
@@ -851,7 +906,7 @@ function updatePowerups(dt){
     p.life -= dt;
     const dist = p.mesh.position.distanceTo(ship.position);
     if (dist < 2.4){
-      applyPowerup(p.kind);
+      applyPowerup(p.kind);modernAudioEvent('power',.8);speak(p.kind==='health'?'Hull restored.':p.kind==='rapid'?'Rapid fire online.':'Boost core charged.');
       scorePopup(p.mesh.position, p.kind.toUpperCase()+'!', '#'+POWER_COLOR[p.kind].toString(16));
       scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose();
       powerups.splice(i,1);
@@ -878,6 +933,7 @@ let bossActive = false;
 function damagePlayer(amount){
   if (invuln > 0) return;
   hp -= amount;
+  modernAudioEvent('warning',Math.min(1,amount/20));
   invuln = 0.6;
   flashVignette();
 }
@@ -896,7 +952,7 @@ function updateCollisions(dt){
     for (let j=asteroids.length-1;j>=0;j--){
       const a = asteroids[j];
       if (b.mesh.position.distanceTo(a.mesh.position) < a.radius+0.3){
-        a.hp -= b.damage||1; burst(b.mesh.position, 0xffe08a, 4);
+        a.hp -= b.damage||1; burst(b.mesh.position,0xffe08a,4); if(gameSettings.hitConfirm)modernAudioEvent('hit',.35);
         if (a.hp<=0) killAsteroid(j, true);
         hit = true; break;
       }
@@ -906,7 +962,7 @@ function updateCollisions(dt){
         const d = drones[j];
         if (b.mesh.position.distanceTo(d.mesh.position) < d.radius+0.3){
           d.hp -= b.damage||1; burst(b.mesh.position, 0xffb0b0, 4);
-          if (d.hp<=0) killDrone(j, true);
+          if (d.hp<=0) killDrone(j,true); else if(gameSettings.hitConfirm)modernAudioEvent('hit',.45);
           hit = true; break;
         }
       }
@@ -951,11 +1007,13 @@ const bannerEl = document.getElementById('banner');
 let bannerTimer = 0;
 function announce(text){
   bannerEl.textContent = text;
+  modernAudioEvent(text.includes('WARDEN')?'warning':'level',text.includes('WARDEN')?1.2:.75);
+  announceVoice(text);
   bannerEl.classList.add('show');
   bannerTimer = 2.0;
 }
 let shakeTime=0, shakeMag=0;
-function shake(dur, mag){ shakeTime = Math.max(shakeTime,dur); shakeMag = Math.max(shakeMag,mag); }
+function shake(dur,mag){if(gameSettings.reducedMotion)return;const mult=gameSettings.shake/100;shakeTime=Math.max(shakeTime,dur);shakeMag=Math.max(shakeMag,mag*mult);}
 function flashVignette(){
   const v = document.getElementById('vignette');
   v.style.boxShadow = 'inset 0 0 200px 60px rgba(255,30,50,0.55)';
@@ -1035,6 +1093,45 @@ function updateMinimap(){
   const flen = Math.hypot(forward.x, forward.z) || 1;
   drawMinimapArrow(cx, cy, forward.x/flen, forward.z/flen, 7, '#2fe6ff');
 }
+
+
+/* ================= Modern audio + settings ================= */
+const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true};
+let gameSettings=Object.assign({},DEFAULT_SETTINGS);
+try{gameSettings=Object.assign({},DEFAULT_SETTINGS,JSON.parse(localStorage.getItem('voidRunnerSettings')||'{}'));}catch(e){}
+let audioCtx=null,masterGain=null,sfxGain=null;
+function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();sfxGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;}catch(e){}}
+function saveSettings(){try{localStorage.setItem('voidRunnerSettings',JSON.stringify(gameSettings));}catch(e){}}
+function beep(type='ui',intensity=1){if(!gameSettings.master||!gameSettings.sfx)return;ensureAudio();if(!audioCtx||!sfxGain)return;const now=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();const map={ui:[520,.055,'sine'],shot:[170,.035,'sawtooth'],hit:[95,.09,'square'],crit:[760,.08,'triangle'],level:[330,.24,'sine'],warning:[120,.18,'square'],power:[620,.12,'triangle']};const p=map[type]||map.ui;o.type=p[2];o.frequency.setValueAtTime(p[0],now);if(type==='shot')o.frequency.exponentialRampToValueAtTime(70,now+p[1]);if(type==='hit')o.frequency.exponentialRampToValueAtTime(180,now+p[1]);if(type==='crit')o.frequency.exponentialRampToValueAtTime(1100,now+p[1]);if(type==='level')o.frequency.exponentialRampToValueAtTime(880,now+p[1]);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(Math.max(.0001,.11*intensity),now+.008);g.gain.exponentialRampToValueAtTime(.0001,now+p[1]);o.connect(g);g.connect(sfxGain);o.start(now);o.stop(now+p[1]+.02);}
+let voiceVoices=[];
+function loadVoices(){if('speechSynthesis' in window)voiceVoices=window.speechSynthesis.getVoices()||[];}
+if('speechSynthesis' in window){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
+function showSubtitle(text){const el=document.getElementById('subtitleBox');if(!el||!gameSettings.subtitles)return;el.textContent='SYSTEM // '+text;el.classList.add('show');clearTimeout(showSubtitle.timer);showSubtitle.timer=setTimeout(()=>el.classList.remove('show'),2200);}
+function speak(text){if(!gameSettings.voiceEnabled||!gameSettings.voice||!('speechSynthesis' in window))return;showSubtitle(text);try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const selected=voiceVoices.find(v=>gameSettings.voiceLang==='auto'||v.lang.toLowerCase().startsWith(gameSettings.voiceLang));if(selected)u.voice=selected;const fx=gameSettings.voiceEffect;u.rate=fx==='command'?.92:fx==='synthetic'?1.12:fx==='radio'?1.03:1;u.pitch=fx==='command'?.72:fx==='synthetic'?1.32:fx==='radio'?.86:1;u.volume=Math.max(0,Math.min(1,gameSettings.master*gameSettings.voice));window.speechSynthesis.speak(u);}catch(e){}}
+function announceVoice(text){speak(text);}
+function updateToggle(id,val){const el=document.getElementById(id);if(el)el.classList.toggle('on',!!val);}
+function syncSettingsUI(){const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake']];pairs.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=gameSettings[key];});document.getElementById('setVoiceEffect').value=gameSettings.voiceEffect;document.getElementById('setVoiceLang').value=gameSettings.voiceLang;updateToggle('setVoiceToggle',gameSettings.voiceEnabled);updateToggle('setDynamicAudio',gameSettings.dynamicAudio);updateToggle('setReducedMotion',gameSettings.reducedMotion);updateToggle('setContrast',gameSettings.contrast);updateToggle('setSubtitles',gameSettings.subtitles);updateToggle('setHitConfirm',gameSettings.hitConfirm);document.documentElement.style.setProperty('--dim',gameSettings.contrast?'#b9c9df':'#7a86a8');}
+function setToggle(id,key){gameSettings[key]=!gameSettings[key];updateToggle(id,gameSettings[key]);saveSettings();beep('ui');}
+function openSettings(fromState){document.getElementById('settings').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');document.getElementById('pause').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('gameover').classList.add('hidden');document.getElementById('settings').dataset.returnState=fromState||state;syncSettingsUI();ensureAudio();}
+function closeSettings(){const ret=document.getElementById('settings').dataset.returnState||'menu';document.getElementById('settings').classList.add('hidden');if(ret==='paused'){state='paused';document.getElementById('pause').classList.remove('hidden');}else if(ret==='playing'){state='playing';document.getElementById('hud').classList.remove('hidden');requestFlightControl();}else{state='menu';document.getElementById('menu').classList.remove('hidden');}}
+function resetSettings(){gameSettings=Object.assign({},DEFAULT_SETTINGS);saveSettings();syncSettingsUI();beep('ui');toast('Settings reset');}
+['setMaster','setSfx','setVoice','setMusic','setAimAssist','setShake'].forEach(id=>{document.getElementById(id).addEventListener('input',e=>{const key=id.replace('set','');const k=key.charAt(0).toLowerCase()+key.slice(1);gameSettings[k]=Number(e.target.value);saveSettings();ensureAudio();});});
+document.getElementById('setVoiceEffect').addEventListener('change',e=>{gameSettings.voiceEffect=e.target.value;saveSettings();});
+document.getElementById('setVoiceLang').addEventListener('change',e=>{gameSettings.voiceLang=e.target.value;saveSettings();});
+document.getElementById('setVoiceToggle').addEventListener('click',()=>setToggle('setVoiceToggle','voiceEnabled'));
+document.getElementById('setDynamicAudio').addEventListener('click',()=>setToggle('setDynamicAudio','dynamicAudio'));
+document.getElementById('setReducedMotion').addEventListener('click',()=>setToggle('setReducedMotion','reducedMotion'));
+document.getElementById('setContrast').addEventListener('click',()=>setToggle('setContrast','contrast'));
+document.getElementById('setSubtitles').addEventListener('click',()=>setToggle('setSubtitles','subtitles'));
+document.getElementById('setHitConfirm').addEventListener('click',()=>setToggle('setHitConfirm','hitConfirm'));
+document.getElementById('settingsClose').addEventListener('click',closeSettings);
+document.getElementById('settingsReset').addEventListener('click',resetSettings);
+document.getElementById('settingsTestVoice').addEventListener('click',()=>{ensureAudio();speak('Weapons hot. Void Runner systems online.');beep('ui');});
+document.getElementById('settingsPauseBtn').addEventListener('click',()=>openSettings('paused'));
+document.getElementById('menuSettingsBtn').addEventListener('click',()=>openSettings('menu'));
+document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='o'){e.preventDefault();if(state==='playing')openSettings('playing');else if(state==='paused')openSettings('paused');else if(state==='menu')openSettings('menu');}});
+document.addEventListener('pointerdown',()=>ensureAudio(),{passive:true});
+function modernAudioEvent(type,intensity=1){if(gameSettings.dynamicAudio)beep(type,intensity);}
 
 /* ================= Game state machine ================= */
 let state='menu'; // menu | playing | paused | levelup | gameover
