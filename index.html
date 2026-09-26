@@ -163,6 +163,13 @@
   #subtitleBox{position:fixed;left:50%;bottom:11%;transform:translateX(-50%);z-index:35;max-width:min(760px,86vw);padding:8px 14px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.15);color:#fff;font:14px/1.4 "Segoe UI",sans-serif;text-align:center;opacity:0;transition:opacity .15s;pointer-events:none}
   #subtitleBox.show{opacity:1}
   #audioBadge{position:fixed;right:18px;top:110px;color:#7a86a8;font:10px "Consolas",monospace;letter-spacing:.08em;opacity:.75}
+  #bossHud{position:fixed;left:50%;top:16px;transform:translateX(-50%);width:min(620px,70vw);z-index:12;pointer-events:none;text-align:center;opacity:0;transition:opacity .2s}
+  #bossHud.show{opacity:1}
+  #bossName{font:12px "Consolas",monospace;letter-spacing:.18em;color:#ffb703;text-shadow:0 0 12px rgba(255,183,3,.6);margin-bottom:5px}
+  #bossTrack{height:13px;background:rgba(255,255,255,.08);border:1px solid rgba(255,183,3,.5);box-shadow:0 0 18px rgba(255,80,40,.12)}
+  #bossFill{height:100%;width:100%;background:linear-gradient(90deg,#ff2f4f,#ffb703,#fff06a);box-shadow:0 0 14px rgba(255,183,3,.6);transition:width .08s}
+  #bossHpText{font:9px "Consolas",monospace;color:#d8edf7;letter-spacing:.12em;margin-top:4px}
+  .gameover-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}}
 
   ::selection{ background:transparent; }
@@ -173,6 +180,7 @@
 <canvas id="gl"></canvas>
 
 <div id="hud" class="hidden">
+  <div id="bossHud"><div id="bossName">WARDEN</div><div id="bossTrack"><div id="bossFill"></div></div><div id="bossHpText">BOSS HP</div></div>
   <div id="vignette"></div>
   <div class="bar-row" id="hpRow"><div class="bar-label">HULL</div><div class="bar-track"><div class="bar-fill" id="hpFill" style="width:100%"></div></div></div>
   <div class="bar-row" id="boostRow"><div class="bar-label">BOOST</div><div class="bar-track"><div class="bar-fill" id="boostFill" style="width:0%"></div></div></div>
@@ -281,7 +289,10 @@
 <div id="gameover" class="overlay hidden">
   <h1 class="title" style="background:linear-gradient(90deg,#ff2f4f,var(--amber));-webkit-background-clip:text;background-clip:text;">HULL BREACH</h1>
   <div id="goStats" class="panel"></div>
-  <button id="playBtn2">Fly Again</button>
+  <div class="gameover-actions">
+    <button id="playBtn2" class="qbtn" style="text-align:center;min-width:170px;">RESTART<small>launch a new run</small></button>
+    <button id="menuBtn2" class="qbtn" style="text-align:center;min-width:170px;">MAIN MENU<small>return to title screen</small></button>
+  </div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -660,7 +671,7 @@ function killLight(l){
 
 let fireCooldown=0;
 function spawnPlayerProjectile(dir,w){const mesh=new THREE.Mesh(bulletGeo,new THREE.MeshBasicMaterial({color:w.color}));mesh.position.copy(ship.position).addScaledVector(dir,2.2);scene.add(mesh);const light=spawnLight(w.color,mesh.position,1.6,12);playerBullets.push({mesh,vel:dir.clone().multiplyScalar(w.speed),life:w.life,light,damage:w.damage*(1+stats.damage*.15),homing:w.homing,target:null})}
-function updatePlayerFire(dt){fireCooldown-=dt;const w=WEAPONS[weaponIndex],cooldown=w.cooldown*Math.pow(.88,stats.fireRate)*(perfClock<rapidUntil?.55:1);if(firing&&fireCooldown<=0&&state==='playing'){fireCooldown=cooldown;const aim=getAimDirection();for(let i=0;i<w.count;i++){const dir=aim.dir.clone();if(w.spread){dir.x+=(Math.random()-.5)*w.spread;dir.y+=(Math.random()-.5)*w.spread;dir.z+=(Math.random()-.5)*w.spread;dir.normalize()}spawnPlayerProjectile(dir,w);if(aim.target)playerBullets[playerBullets.length-1].target=aim.target.entity}}}
+function updatePlayerFire(dt){fireCooldown-=dt;const w=WEAPONS[weaponIndex],cooldown=w.cooldown*Math.pow(.88,stats.fireRate)*(perfClock<rapidUntil?.55:1);if(firing&&fireCooldown<=0&&state==='playing'){fireCooldown=cooldown;const aim=getAimDirection();weaponSound(w.name,Math.min(1.2,0.75+stats.damage*.03));for(let i=0;i<w.count;i++){const dir=aim.dir.clone();if(w.spread){dir.x+=(Math.random()-.5)*w.spread;dir.y+=(Math.random()-.5)*w.spread;dir.z+=(Math.random()-.5)*w.spread;dir.normalize()}spawnPlayerProjectile(dir,w);if(aim.target)playerBullets[playerBullets.length-1].target=aim.target.entity}}}
 
 function updateBulletList(list, dt, isEnemy){
   for (let i=list.length-1;i>=0;i--){
@@ -875,6 +886,17 @@ function spawnEnemyBullet(pos, dir, speed){
   scene.add(mesh);
   const light = spawnLight(0xff4d4d, pos, 1.4, 10);
   enemyBullets.push({ mesh, vel: dir.clone().multiplyScalar(speed), life:3.2, light, damage: 9 });
+}
+function updateBossHud(){
+  const boss=drones.find(d=>d.boss);
+  const hud=document.getElementById('bossHud');
+  if(!hud)return;
+  if(!boss){hud.classList.remove('show');return;}
+  hud.classList.add('show');
+  const pct=Math.max(0,Math.min(100,boss.hp/boss.maxHp*100));
+  document.getElementById('bossName').textContent='WARDEN // BOSS';
+  document.getElementById('bossFill').style.width=pct+'%';
+  document.getElementById('bossHpText').textContent='BOSS HP '+Math.ceil(Math.max(0,boss.hp))+' / '+Math.ceil(boss.maxHp);
 }
 function killDrone(index, scored){
   const d = drones[index];
@@ -1103,6 +1125,27 @@ let audioCtx=null,masterGain=null,sfxGain=null;
 function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();sfxGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;}catch(e){}}
 function saveSettings(){try{localStorage.setItem('voidRunnerSettings',JSON.stringify(gameSettings));}catch(e){}}
 function beep(type='ui',intensity=1){if(!gameSettings.master||!gameSettings.sfx)return;ensureAudio();if(!audioCtx||!sfxGain)return;const now=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();const map={ui:[520,.055,'sine'],shot:[170,.035,'sawtooth'],hit:[95,.09,'square'],crit:[760,.08,'triangle'],level:[330,.24,'sine'],warning:[120,.18,'square'],power:[620,.12,'triangle']};const p=map[type]||map.ui;o.type=p[2];o.frequency.setValueAtTime(p[0],now);if(type==='shot')o.frequency.exponentialRampToValueAtTime(70,now+p[1]);if(type==='hit')o.frequency.exponentialRampToValueAtTime(180,now+p[1]);if(type==='crit')o.frequency.exponentialRampToValueAtTime(1100,now+p[1]);if(type==='level')o.frequency.exponentialRampToValueAtTime(880,now+p[1]);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(Math.max(.0001,.11*intensity),now+.008);g.gain.exponentialRampToValueAtTime(.0001,now+p[1]);o.connect(g);g.connect(sfxGain);o.start(now);o.stop(now+p[1]+.02);}
+function weaponSound(weapon,intensity=1){
+  if(!gameSettings.master||!gameSettings.sfx)return;
+  ensureAudio(); if(!audioCtx||!sfxGain)return;
+  const now=audioCtx.currentTime;
+  const presets={
+    PULSE:[[210,95,.045,'sawtooth',.08]],
+    SCATTER:[[420,120,.07,'square',.055],[190,70,.09,'sawtooth',.045]],
+    PLASMA:[[92,310,.16,'sine',.12],[260,70,.08,'triangle',.07]],
+    MISSILE:[[150,48,.22,'sawtooth',.12],[70,38,.28,'square',.06]]
+  };
+  const shots=presets[weapon]||presets.PULSE;
+  shots.forEach(([start,end,dur,type,vol],idx)=>{
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type;o.frequency.setValueAtTime(start,now+idx*.012);
+    o.frequency.exponentialRampToValueAtTime(Math.max(30,end),now+idx*.012+dur);
+    g.gain.setValueAtTime(.0001,now+idx*.012);
+    g.gain.exponentialRampToValueAtTime(Math.max(.0001,vol*intensity),now+idx*.012+.008);
+    g.gain.exponentialRampToValueAtTime(.0001,now+idx*.012+dur);
+    o.connect(g);g.connect(sfxGain);o.start(now+idx*.012);o.stop(now+idx*.012+dur+.02);
+  });
+}
 let voiceVoices=[];
 function loadVoices(){if('speechSynthesis' in window)voiceVoices=window.speechSynthesis.getVoices()||[];}
 if('speechSynthesis' in window){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
@@ -1168,10 +1211,21 @@ function startGame(){
   requestFlightControl();
 }
 function endGame(){
-  state='gameover';document.getElementById('levelup').classList.add('hidden');document.getElementById('hud').classList.add('hidden');
+  state='gameover';document.getElementById('levelup').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('bossHud').classList.remove('show');
   document.getElementById('goStats').innerHTML =
     'SCORE <b>'+score+'</b><br>WAVE REACHED <b>'+wave+'</b><br><span style="color:#7a86a8;font-size:12px;">press R to restart</span>';
   document.getElementById('gameover').classList.remove('hidden');
+}
+function returnToMenu(){
+  state='menu';
+  if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();
+  document.getElementById('gameover').classList.add('hidden');
+  document.getElementById('pause').classList.add('hidden');
+  document.getElementById('levelup').classList.add('hidden');
+  document.getElementById('settings').classList.add('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('menu').classList.remove('hidden');
+  announceVoice('Returning to main menu.');
 }
 function togglePause(){if(state==='levelup')return;
   if (state==='playing'){
@@ -1207,6 +1261,7 @@ document.getElementById('qualityBtns').classList.add('bound');
 /* ================= Buttons ================= */
 document.getElementById('playBtn').addEventListener('click', startGame);
 document.getElementById('playBtn2').addEventListener('click', startGame);
+document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
 document.getElementById('resumeBtn').addEventListener('click', ()=>{ if (state==='paused') togglePause(); });
 
 /* ================= HUD refresh ================= */
@@ -1218,6 +1273,7 @@ function refreshHud(dt){
   document.getElementById('waveNum').textContent = wave;
   document.getElementById('hostileCount').textContent = asteroids.length + drones.length;
   document.getElementById('scoreVal').textContent = score;
+  updateBossHud();
   const comboEl = document.getElementById('combo');
   if (combo>1){ comboEl.style.opacity=1; document.getElementById('comboVal').textContent = combo; }
   else comboEl.style.opacity=0;
