@@ -1211,7 +1211,12 @@ function startGame(){
   requestFlightControl();
 }
 function endGame(){
-  state='gameover';document.getElementById('levelup').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('bossHud').classList.remove('show');
+  state='gameover';
+  firing=false;
+  if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();
+  document.getElementById('levelup').classList.add('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('bossHud').classList.remove('show');
   document.getElementById('goStats').innerHTML =
     'SCORE <b>'+score+'</b><br>WAVE REACHED <b>'+wave+'</b><br><span style="color:#7a86a8;font-size:12px;">press R to restart</span>';
   document.getElementById('gameover').classList.remove('hidden');
