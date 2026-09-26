@@ -73,7 +73,7 @@
   #levelup{z-index:20}.levelup-title{color:#ffb703;text-shadow:0 0 24px rgba(255,183,3,.5)}.levelup-sub{color:var(--dim);font:12px/1.5 "Consolas",monospace;letter-spacing:.08em}
   #statChoices{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:10px;width:min(520px,90vw)}
   .stat-btn{pointer-events:auto;cursor:pointer;padding:14px;text-align:left;color:#dff7ff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);font:12px/1.4 "Consolas",monospace}
-  .stat-btn:hover{border-color:#ffb703;background:rgba(255,183,3,.08)}.stat-btn b{display:block;color:#ffb703;margin-bottom:4px}.stat-btn small{color:var(--dim)}
+  .stat-btn:hover{border-color:#ffb703;background:rgba(255,183,3,.08)}.stat-btn b{display:block;color:#ffb703;margin-bottom:4px}.stat-btn small{color:var(--dim)}.stat-btn.disabled{opacity:.42;cursor:not-allowed}.stat-btn.disabled:hover{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.04)}.levelup-actions{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}.levelup-points{font:12px "Consolas",monospace;color:#ffb703;letter-spacing:.08em}.save-stat-btn{pointer-events:auto;cursor:pointer;padding:11px 18px;color:#cfe4f5;background:rgba(255,255,255,.04);border:1px solid rgba(255,183,3,.45);font:12px "Consolas",monospace;letter-spacing:.08em}.save-stat-btn:hover{background:rgba(255,183,3,.08);border-color:#ffb703}
 
   /* ---------- Radar / minimap ---------- */
   #minimapLabel{
@@ -244,14 +244,17 @@
 </div>
 
 <div id="levelup" class="overlay hidden"><h1 class="title levelup-title">LEVEL UP</h1>
-  <div class="levelup-sub">CHOOSE ONE UPGRADE · LEVEL <b id="levelUpNumber">2</b></div>
+  <div class="levelup-sub">UPGRADE OR SAVE YOUR POINTS · LEVEL <b id="levelUpNumber">2</b></div>
+  <div class="levelup-points">AVAILABLE STAT POINTS: <b id="availableStatPoints">1</b></div>
   <div id="statChoices">
-    <button class="stat-btn" data-stat="damage"><b>WEAPON DAMAGE</b><small>+15% projectile damage</small></button>
-    <button class="stat-btn" data-stat="fireRate"><b>FIRE CONTROL</b><small>+12% fire rate</small></button>
-    <button class="stat-btn" data-stat="hull"><b>HULL INTEGRITY</b><small>+15 maximum hull</small></button>
-    <button class="stat-btn" data-stat="boost"><b>BOOST CORE</b><small>+15 maximum boost</small></button>
-    <button class="stat-btn" data-stat="aim"><b>SMART AIM</b><small>stronger target lock and lead assist</small></button>
-  </div></div>
+    <button class="stat-btn" data-stat="damage"><b>WEAPON DAMAGE</b><small>+15% damage · COST <b data-cost="damage">1</b></small></button>
+    <button class="stat-btn" data-stat="fireRate"><b>FIRE CONTROL</b><small>+12% fire rate · COST <b data-cost="fireRate">1</b></small></button>
+    <button class="stat-btn" data-stat="hull"><b>HULL INTEGRITY</b><small>+15 maximum hull · COST <b data-cost="hull">2</b></small></button>
+    <button class="stat-btn" data-stat="boost"><b>BOOST CORE</b><small>+15 maximum boost · COST <b data-cost="boost">2</b></small></button>
+    <button class="stat-btn" data-stat="aim"><b>SMART AIM</b><small>stronger target lock and lead assist · COST <b data-cost="aim">3</b></small></button>
+  </div>
+  <div class="levelup-actions"><button id="saveStatBtn" class="save-stat-btn">SAVE STAT POINT(S)</button></div>
+  </div>
 
 
 <div id="settings" class="overlay hidden">
@@ -637,10 +640,59 @@ const WEAPONS=[
 let weaponIndex=0,level=1,xp=0,statPoints=0; let stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};
 function xpForLevel(lv){return Math.floor(100*Math.pow(lv,1.28))}
 function totalMaxHp(){return 100+stats.hull*15} function totalMaxBoost(){return 100+stats.boost*15}
-function awardXP(amount){xp+=amount;while(xp>=xpForLevel(level)){xp-=xpForLevel(level);level++;statPoints++;openLevelUp()}}
-function openLevelUp(){state='levelup';if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();document.getElementById('levelUpNumber').textContent=level;document.getElementById('levelup').classList.remove('hidden')}
-function applyStat(stat){if(statPoints<=0)return;stats[stat]++;statPoints--;if(stat==='hull')hp=Math.min(totalMaxHp(),hp+15);if(stat==='boost')boost=Math.min(totalMaxBoost(),boost+15);if(statPoints<=0){document.getElementById('levelup').classList.add('hidden');state='playing';requestFlightControl()}}
+const STAT_BASE_COST={damage:1,fireRate:1,hull:2,boost:2,aim:3};
+function statCost(stat){return (STAT_BASE_COST[stat]||1)+stats[stat];}
+function updateLevelUpUI(){
+  document.getElementById('availableStatPoints').textContent=statPoints;
+  document.querySelectorAll('.stat-btn').forEach(btn=>{
+    const stat=btn.dataset.stat;
+    const cost=statCost(stat);
+    const costEl=btn.querySelector('[data-cost]');
+    if(costEl)costEl.textContent=cost;
+    btn.classList.toggle('disabled',statPoints<cost);
+    btn.disabled=statPoints<cost;
+  });
+}
+function awardXP(amount){
+  xp+=amount;
+  while(xp>=xpForLevel(level)){
+    xp-=xpForLevel(level);
+    level++;
+    statPoints++;
+    openLevelUp();
+  }
+}
+function openLevelUp(){
+  state='levelup';
+  if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();
+  document.getElementById('levelUpNumber').textContent=level;
+  updateLevelUpUI();
+  document.getElementById('levelup').classList.remove('hidden');
+}
+function closeLevelUp(){
+  document.getElementById('levelup').classList.add('hidden');
+  state='playing';
+  requestFlightControl();
+}
+function applyStat(stat){
+  const cost=statCost(stat);
+  if(statPoints<cost)return;
+  stats[stat]++;
+  statPoints-=cost;
+  if(stat==='hull')hp=Math.min(totalMaxHp(),hp+15);
+  if(stat==='boost')boost=Math.min(totalMaxBoost(),boost+15);
+  modernAudioEvent('level',.7);
+  updateLevelUpUI();
+  if(statPoints<=0)closeLevelUp();
+}
+function saveStatPoints(){
+  if(statPoints<=0)return;
+  toast('Stat point(s) saved');
+  modernAudioEvent('ui',.8);
+  closeLevelUp();
+}
 document.querySelectorAll('.stat-btn').forEach(btn=>btn.addEventListener('click',()=>applyStat(btn.dataset.stat)));
+document.getElementById('saveStatBtn').addEventListener('click',saveStatPoints);
 function switchWeapon(index){if(index<0||index>=WEAPONS.length)return;weaponIndex=index;document.getElementById('weaponName').textContent=WEAPONS[index].name;toast('Weapon: '+WEAPONS[index].name)}
 function findAimTarget(origin,forward){const range=260,cone=Math.max(.78,.985-(stats.aim*.01)*(gameSettings.aimAssist/100));let best=null,bestScore=-Infinity;for(const d of drones){const to=d.mesh.position.clone().sub(origin),dist=to.length();if(dist>range)continue;const dot=forward.dot(to.normalize());if(dot<cone)continue;const score=dot*2-dist/range;if(score>bestScore){bestScore=score;best={entity:d,dist}}}return best}
 function getAimDirection(){const forward=new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion).normalize(),target=findAimTarget(ship.position,forward);if(!target)return{dir:forward,target:null};const predicted=target.entity.mesh.position.clone(),t=target.dist/Math.max(1,WEAPONS[weaponIndex].speed),v=target.entity.mesh.userData.velocity;if(v)predicted.addScaledVector(v,t*(1+stats.aim*.08));return{dir:predicted.sub(ship.position).normalize(),target}}
