@@ -462,7 +462,7 @@ function resize(){
   renderer.setPixelRatio(Math.min(dpr,mobileCap));
   renderer.setSize(w,h,false);
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', resize);\nwindow.addEventListener('error', e=>console.error('VOID RUNNER ERROR',e.error||e.message));\nwindow.addEventListener('unhandledrejection', e=>console.error('VOID RUNNER PROMISE ERROR',e.reason));
 
 /* GPU hint text on menu */
 (function gpuHint(){
@@ -1791,8 +1791,8 @@ document.querySelectorAll('.qbtn').forEach(btn=>{
 document.getElementById('qualityBtns').classList.add('bound');
 
 /* ================= Buttons ================= */
-document.getElementById('playBtn').addEventListener('click', startGame);
-document.getElementById('playBtn2').addEventListener('click', startGame);
+document.getElementById('playBtn').addEventListener('click', ()=>{try{startGame();}catch(err){console.error('VOID RUNNER LAUNCH ERROR',err);toast('Launch error — check browser console');}});
+document.getElementById('playBtn2').addEventListener('click', ()=>{try{startGame();}catch(err){console.error('VOID RUNNER RESTART ERROR',err);toast('Restart error — check browser console');}});
 document.getElementById('menuBtn2').addEventListener('click', returnToMenu);
 document.getElementById('resumeBtn').addEventListener('click', ()=>{ if (state==='paused') togglePause(); });
 
