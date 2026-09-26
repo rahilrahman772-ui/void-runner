@@ -1199,8 +1199,40 @@ function updateMinimap(){
 const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true};
 let gameSettings=Object.assign({},DEFAULT_SETTINGS);
 try{gameSettings=Object.assign({},DEFAULT_SETTINGS,JSON.parse(localStorage.getItem('voidRunnerSettings')||'{}'));}catch(e){}
-let audioCtx=null,masterGain=null,sfxGain=null;
-function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();sfxGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;}catch(e){}}
+let audioCtx=null,masterGain=null,sfxGain=null,musicGain=null,musicTimer=null,musicStep=0;
+function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();musicGain=audioCtx.createGain();sfxGain.connect(masterGain);musicGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;musicGain.gain.value=gameSettings.music*.34;}catch(e){}}
+function musicNote(freq,time,dur,vol,type='triangle'){
+  if(!audioCtx||!musicGain||!gameSettings.music)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain(),f=audioCtx.createBiquadFilter();
+  o.type=type;o.frequency.setValueAtTime(freq,time);
+  f.type='lowpass';f.frequency.setValueAtTime(type==='sawtooth'?1150:1900,time);f.Q.value=.7;
+  g.gain.setValueAtTime(.0001,time);g.gain.exponentialRampToValueAtTime(Math.max(.0001,vol),time+.025);g.gain.exponentialRampToValueAtTime(.0001,time+dur);
+  o.connect(f);f.connect(g);g.connect(musicGain);o.start(time);o.stop(time+dur+.04);
+}
+function scheduleMusic(){
+  if(!audioCtx||!musicGain||state!=='playing'||!gameSettings.music)return;
+  const bpm=96+Math.min(22,Math.max(0,wave-1)*1.8),beat=60/bpm;
+  const t=audioCtx.currentTime+.05;
+  const root=[146.83,138.59,130.81,123.47][Math.floor(musicStep/8)%4];
+  const arp=[1,1.5,1.78,2.0,1.5,1.78,2.0,2.67][musicStep%8];
+  const intensity=bossActive?1.28:(wave>=4?1.12:1);
+  musicNote(root*arp,t,beat*.72,.028*intensity,'triangle');
+  if(musicStep%2===0)musicNote(root/2,t,beat*1.65,.045*intensity,'sine');
+  if(musicStep%4===0)musicNote(root*2,t,beat*.32,.018*intensity,'sawtooth');
+  if(bossActive&&musicStep%2===1)musicNote(root*3,t,beat*.18,.022,'square');
+  musicStep++;
+}
+function startMusic(){
+  ensureAudio();if(!audioCtx||!musicGain||musicTimer)return;
+  musicStep=0;
+  scheduleMusic();
+  musicTimer=setInterval(scheduleMusic,360);
+}
+function stopMusic(){
+  if(musicTimer){clearInterval(musicTimer);musicTimer=null;}
+  musicStep=0;
+}
+
 function saveSettings(){try{localStorage.setItem('voidRunnerSettings',JSON.stringify(gameSettings));}catch(e){}}
 function beep(type='ui',intensity=1){if(!gameSettings.master||!gameSettings.sfx)return;ensureAudio();if(!audioCtx||!sfxGain)return;const now=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();const map={ui:[520,.055,'sine'],shot:[170,.035,'sawtooth'],hit:[95,.09,'square'],crit:[760,.08,'triangle'],level:[330,.24,'sine'],warning:[120,.18,'square'],power:[620,.12,'triangle']};const p=map[type]||map.ui;o.type=p[2];o.frequency.setValueAtTime(p[0],now);if(type==='shot')o.frequency.exponentialRampToValueAtTime(70,now+p[1]);if(type==='hit')o.frequency.exponentialRampToValueAtTime(180,now+p[1]);if(type==='crit')o.frequency.exponentialRampToValueAtTime(1100,now+p[1]);if(type==='level')o.frequency.exponentialRampToValueAtTime(880,now+p[1]);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(Math.max(.0001,.11*intensity),now+.008);g.gain.exponentialRampToValueAtTime(.0001,now+p[1]);o.connect(g);g.connect(sfxGain);o.start(now);o.stop(now+p[1]+.02);}
 function weaponSound(weapon,intensity=1){
@@ -1235,7 +1267,7 @@ function syncSettingsUI(){const pairs=[['setMaster','master'],['setSfx','sfx'],[
 function setToggle(id,key){gameSettings[key]=!gameSettings[key];updateToggle(id,gameSettings[key]);saveSettings();beep('ui');}
 function openSettings(fromState){document.getElementById('settings').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');document.getElementById('pause').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('gameover').classList.add('hidden');document.getElementById('settings').dataset.returnState=fromState||state;syncSettingsUI();ensureAudio();}
 function closeSettings(){const ret=document.getElementById('settings').dataset.returnState||'menu';document.getElementById('settings').classList.add('hidden');if(ret==='paused'){state='paused';document.getElementById('pause').classList.remove('hidden');}else if(ret==='playing'){state='playing';document.getElementById('hud').classList.remove('hidden');requestFlightControl();}else{state='menu';document.getElementById('menu').classList.remove('hidden');}}
-function resetSettings(){gameSettings=Object.assign({},DEFAULT_SETTINGS);saveSettings();syncSettingsUI();beep('ui');toast('Settings reset');}
+function resetSettings(){gameSettings=Object.assign({},DEFAULT_SETTINGS);saveSettings();syncSettingsUI();ensureAudio();beep('ui');toast('Settings reset');}
 ['setMaster','setSfx','setVoice','setMusic','setAimAssist','setShake'].forEach(id=>{document.getElementById(id).addEventListener('input',e=>{const key=id.replace('set','');const k=key.charAt(0).toLowerCase()+key.slice(1);gameSettings[k]=Number(e.target.value);saveSettings();ensureAudio();});});
 document.getElementById('setVoiceEffect').addEventListener('change',e=>{gameSettings.voiceEffect=e.target.value;saveSettings();});
 document.getElementById('setVoiceLang').addEventListener('change',e=>{gameSettings.voiceLang=e.target.value;saveSettings();});
@@ -1281,6 +1313,7 @@ function resetWorld(){
 
 function startGame(){
   resetWorld();
+  startMusic();
   state = 'playing';
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
@@ -1290,6 +1323,7 @@ function startGame(){
 }
 function endGame(){
   state='gameover';
+  stopMusic();
   firing=false;
   if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();
   document.getElementById('levelup').classList.add('hidden');
@@ -1300,6 +1334,7 @@ function endGame(){
   document.getElementById('gameover').classList.remove('hidden');
 }
 function returnToMenu(){
+  stopMusic();
   state='menu';
   if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();
   document.getElementById('gameover').classList.add('hidden');
