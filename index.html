@@ -469,7 +469,9 @@ function resize(){
   renderer.setPixelRatio(Math.min(dpr,mobileCap));
   renderer.setSize(w,h,false);
 }
-window.addEventListener('resize', resize);\nwindow.addEventListener('error', e=>console.error('VOID RUNNER ERROR',e.error||e.message));\nwindow.addEventListener('unhandledrejection', e=>console.error('VOID RUNNER PROMISE ERROR',e.reason));
+window.addEventListener('resize', resize);
+window.addEventListener('error', e=>console.error('VOID RUNNER ERROR',e.error||e.message));
+window.addEventListener('unhandledrejection', e=>console.error('VOID RUNNER PROMISE ERROR',e.reason));
 
 /* Adaptive renderer detection: GPU acceleration when available,
    CPU/software WebGL renderers remain supported at a safer quality level. */
@@ -1625,8 +1627,6 @@ function syncSettingsUI(){
   updateToggle('setVoiceToggle',gameSettings.voiceEnabled);updateToggle('setDynamicAudio',gameSettings.dynamicAudio);
   updateToggle('setReducedMotion',gameSettings.reducedMotion);updateToggle('setContrast',gameSettings.contrast);
   updateToggle('setSubtitles',gameSettings.subtitles);updateToggle('setHitConfirm',gameSettings.hitConfirm);
-  updateToggle('setGyroToggle',gameSettings.gyroEnabled);updateToggle('setGyroInvert',gameSettings.gyroInvert);
-  const gv=document.getElementById('valGyroSensitivity');if(gv)gv.textContent=Math.round(gameSettings.gyroSensitivity)+'%';
   document.getElementById('settingsFullscreen').textContent=document.fullscreenElement?'EXIT':'ENTER';
   document.documentElement.style.setProperty('--dim',gameSettings.contrast?'#b9c9df':'#7a86a8');
 }
