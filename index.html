@@ -1170,11 +1170,24 @@ function updateCollisions(dt){
   }
 }
 
+function updateEnvironment(){
+  const zone=((wave-1)%5);
+  const colors=[0x03030c,0x071225,0x16051d,0x0b1720,0x180b08];
+  const fogs=[.0034,.0030,.0026,.0031,.0028];
+  scene.fog.color.setHex(colors[zone]);
+  scene.fog.density=fogs[zone];
+  ambient.color.setHex([0x33406a,0x244f72,0x5a2868,0x245d64,0x70402b][zone]);
+  rim.color.setHex([0xff2f9e,0x2fe6ff,0xff3dbb,0x6cffcb,0xff7b2f][zone]);
+  const names=['DEEP SPACE','ASTEROID BELT','NEBULA','ION STORM','RED GIANT'];
+  const zoneName=names[zone];
+  document.getElementById('banner').dataset.zone=zoneName;
+}
+
 /* ================= Wave director ================= */
 function updateWaves(dt){
   waveTimer += dt;
   if (waveTimer >= WAVE_DURATION && !bossActive){
-    waveTimer = 0; wave++; announce('WAVE '+wave);
+    waveTimer = 0; wave++; updateEnvironment(); announce('WAVE '+wave+' // '+document.getElementById('banner').dataset.zone);
   }
   if (wave % 5 === 0 && !bossActive && drones.filter(d=>d.boss).length===0){
     bossActive = true;
@@ -1399,7 +1412,7 @@ function resetWorld(){
   mouseYawDelta=0; mousePitchDelta=0;
   hp=totalMaxHp();invuln=1.2;boost=totalMaxBoost();shield=maxShield();shieldDelay=0;rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
   score=0;combo=1;comboTimer=0;
-  wave=1; waveTimer=0; bossActive=false;
+  wave=1; waveTimer=0; bossActive=false; updateEnvironment();
 }
 
 function startGame(){
