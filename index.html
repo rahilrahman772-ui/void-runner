@@ -65,10 +65,15 @@
     position:absolute; left:50%; top:50%; width:22px; height:22px;
     margin:-11px 0 0 -11px; border:1px solid rgba(47,230,255,.55); border-radius:50%;
   }
-  #crosshair::after{
-    content:""; position:absolute; left:50%; top:50%; width:3px; height:3px;
-    margin:-1.5px 0 0 -1.5px; background:var(--cyan); border-radius:50%;
-  }
+  #crosshair::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;background:var(--cyan);border-radius:50%}
+  #aimLock{position:absolute;left:50%;top:calc(50% + 22px);transform:translateX(-50%);font:10px/1 "Consolas",monospace;letter-spacing:.12em;color:#ffb703;opacity:0;transition:opacity .12s}
+  #levelHud{position:absolute;left:18px;top:48px;font:11px/1.5 "Consolas",monospace;color:var(--dim);letter-spacing:.08em}#levelHud b{color:#eaf6ff}
+  .xp-track{width:160px;height:5px;margin-top:3px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}#xpFill{height:100%;width:0%;background:linear-gradient(90deg,#8b5cf6,#2fe6ff)}
+  #weaponHud{position:absolute;right:18px;bottom:82px;text-align:right;font:11px/1.55 "Consolas",monospace;color:var(--dim);letter-spacing:.06em}#weaponHud b{color:#fff}#statPointsHud{color:#ffb703}
+  #levelup{z-index:20}.levelup-title{color:#ffb703;text-shadow:0 0 24px rgba(255,183,3,.5)}.levelup-sub{color:var(--dim);font:12px/1.5 "Consolas",monospace;letter-spacing:.08em}
+  #statChoices{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:10px;width:min(520px,90vw)}
+  .stat-btn{pointer-events:auto;cursor:pointer;padding:14px;text-align:left;color:#dff7ff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);font:12px/1.4 "Consolas",monospace}
+  .stat-btn:hover{border-color:#ffb703;background:rgba(255,183,3,.08)}.stat-btn b{display:block;color:#ffb703;margin-bottom:4px}.stat-btn small{color:var(--dim)}
 
   /* ---------- Radar / minimap ---------- */
   #minimapLabel{
@@ -152,6 +157,7 @@
   <div id="vignette"></div>
   <div class="bar-row" id="hpRow"><div class="bar-label">HULL</div><div class="bar-track"><div class="bar-fill" id="hpFill" style="width:100%"></div></div></div>
   <div class="bar-row" id="boostRow"><div class="bar-label">BOOST</div><div class="bar-track"><div class="bar-fill" id="boostFill" style="width:0%"></div></div></div>
+  <div id="levelHud">LV <b id="levelVal">1</b> · XP <b id="xpVal">0</b>/<b id="xpNext">100</b><div class="xp-track"><div id="xpFill"></div></div></div>
 
   <div id="minimapLabel">RADAR</div>
   <div id="minimapWrap"><canvas id="minimap" width="252" height="252"></canvas></div>
@@ -172,7 +178,8 @@
     <div>QUALITY <b id="qualityLabel">HIGH</b></div>
   </div>
 
-  <div id="crosshair"></div>
+  <div id="crosshair"></div><div id="aimLock">AIM LOCK</div>
+  <div id="weaponHud">WEAPON <b id="weaponName">PULSE</b> [1]<br><span id="statPointsHud">STAT POINTS: 0</span></div>
   <div id="banner"></div>
 </div>
 
@@ -188,7 +195,7 @@
       <b>W A S D</b><span>thrust / strafe</span>
       <b>SPACE / SHIFT</b><span>climb / dive</span>
       <b>CLICK (hold)</b><span>fire cannons</span>
-      <b>1 2 3 4</b><span>switch render quality anytime</span>
+      <b>1 2 3 4</b><span>switch weapons · render quality stays in menu</span>
       <b>ESC</b><span>pause</span>
     </div>
   </div>
@@ -206,6 +213,16 @@
   <button id="playBtn">Launch</button>
   <div class="hint" id="gpuHint">detecting GPU…</div>
 </div>
+
+<div id="levelup" class="overlay hidden"><h1 class="title levelup-title">LEVEL UP</h1>
+  <div class="levelup-sub">CHOOSE ONE UPGRADE · LEVEL <b id="levelUpNumber">2</b></div>
+  <div id="statChoices">
+    <button class="stat-btn" data-stat="damage"><b>WEAPON DAMAGE</b><small>+15% projectile damage</small></button>
+    <button class="stat-btn" data-stat="fireRate"><b>FIRE CONTROL</b><small>+12% fire rate</small></button>
+    <button class="stat-btn" data-stat="hull"><b>HULL INTEGRITY</b><small>+15 maximum hull</small></button>
+    <button class="stat-btn" data-stat="boost"><b>BOOST CORE</b><small>+15 maximum boost</small></button>
+    <button class="stat-btn" data-stat="aim"><b>SMART AIM</b><small>stronger target lock and lead assist</small></button>
+  </div></div>
 
 <div id="gameover" class="overlay hidden">
   <h1 class="title" style="background:linear-gradient(90deg,#ff2f4f,var(--amber));-webkit-background-clip:text;background-clip:text;">HULL BREACH</h1>
@@ -432,10 +449,7 @@ const keys = {};
 window.addEventListener('keydown', e=>{
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
-    const map = {Digit1:'low',Digit2:'medium',Digit3:'high',Digit4:'ultra'};
-    setQuality(map[e.code]);
-  }
+  if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) switchWeapon(Number(e.code.slice(-1))-1);
   if (e.code === 'Escape') togglePause();
   if (e.code === 'KeyR' && state === 'gameover') startGame();
 });
@@ -533,7 +547,7 @@ function updateShip(dt){
   glow.scale.setScalar(1.3 + speedFrac*1.4 + Math.sin(perfClock*14)*0.08);
   shipLight.intensity = 1.1 + speedFrac*1.2;
 
-  boost = Math.max(0, Math.min(100, boost + (moving ? -8 : 14) * dt));
+  boost = Math.max(0, Math.min(totalMaxBoost(), boost + (moving ? -8 : 14) * dt));
 }
 
 function updateCamera(dt){
@@ -547,6 +561,24 @@ function updateCamera(dt){
   sun.position.copy(ship.position).add(new THREE.Vector3(120,180,90));
 }
 
+/* ================= Progression, weapons & smart aiming ================= */
+const WEAPONS=[
+ {name:'PULSE',key:'1',cooldown:.12,speed:120,damage:1,color:0x8fffe0,spread:0,count:1,life:2.2,homing:0},
+ {name:'SCATTER',key:'2',cooldown:.34,speed:100,damage:.65,color:0xffb703,spread:.12,count:5,life:1.8,homing:0},
+ {name:'PLASMA',key:'3',cooldown:.48,speed:82,damage:3.2,color:0xb66cff,spread:0,count:1,life:2.8,homing:0},
+ {name:'MISSILE',key:'4',cooldown:.72,speed:58,damage:4.8,color:0xff5a7d,spread:.03,count:1,life:4.5,homing:.92}
+];
+let weaponIndex=0,level=1,xp=0,statPoints=0; let stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};
+function xpForLevel(lv){return Math.floor(100*Math.pow(lv,1.28))}
+function totalMaxHp(){return 100+stats.hull*15} function totalMaxBoost(){return 100+stats.boost*15}
+function awardXP(amount){xp+=amount;while(xp>=xpForLevel(level)){xp-=xpForLevel(level);level++;statPoints++;openLevelUp()}}
+function openLevelUp(){state='levelup';if(document.pointerLockElement===canvas&&document.exitPointerLock)document.exitPointerLock();document.getElementById('levelUpNumber').textContent=level;document.getElementById('levelup').classList.remove('hidden')}
+function applyStat(stat){if(statPoints<=0)return;stats[stat]++;statPoints--;if(stat==='hull')hp=Math.min(totalMaxHp(),hp+15);if(stat==='boost')boost=Math.min(totalMaxBoost(),boost+15);if(statPoints<=0){document.getElementById('levelup').classList.add('hidden');state='playing';requestFlightControl()}}
+document.querySelectorAll('.stat-btn').forEach(btn=>btn.addEventListener('click',()=>applyStat(btn.dataset.stat)));
+function switchWeapon(index){if(index<0||index>=WEAPONS.length)return;weaponIndex=index;document.getElementById('weaponName').textContent=WEAPONS[index].name;toast('Weapon: '+WEAPONS[index].name)}
+function findAimTarget(origin,forward){const range=260,cone=Math.max(.90,.985-stats.aim*.01);let best=null,bestScore=-Infinity;for(const d of drones){const to=d.mesh.position.clone().sub(origin),dist=to.length();if(dist>range)continue;const dot=forward.dot(to.normalize());if(dot<cone)continue;const score=dot*2-dist/range;if(score>bestScore){bestScore=score;best={entity:d,dist}}}return best}
+function getAimDirection(){const forward=new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion).normalize(),target=findAimTarget(ship.position,forward);if(!target)return{dir:forward,target:null};const predicted=target.entity.mesh.position.clone(),t=target.dist/Math.max(1,WEAPONS[weaponIndex].speed),v=target.entity.mesh.userData.velocity;if(v)predicted.addScaledVector(v,t*(1+stats.aim*.08));return{dir:predicted.sub(ship.position).normalize(),target}}
+ 
 /* ================= Bullets & dynamic lights ================= */
 const bulletGeo = new THREE.SphereGeometry(0.22, 8, 8);
 const playerBulletMat = new THREE.MeshBasicMaterial({ color:0x8fffe0 });
@@ -571,24 +603,14 @@ function killLight(l){
   if (i>=0) dynamicLights.splice(i,1);
 }
 
-let fireCooldown = 0;
-function updatePlayerFire(dt){
-  fireCooldown -= dt;
-  if (firing && fireCooldown <= 0 && state === 'playing'){
-    fireCooldown = 0.11;
-    const forward = new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion);
-    const spawnPos = ship.position.clone().addScaledVector(forward, 2.2);
-    const mesh = new THREE.Mesh(bulletGeo, playerBulletMat);
-    mesh.position.copy(spawnPos);
-    scene.add(mesh);
-    const light = spawnLight(0x6cffcb, spawnPos, 1.6, 12);
-    playerBullets.push({ mesh, vel: forward.clone().multiplyScalar(120), life:2.2, light });
-  }
-}
+let fireCooldown=0;
+function spawnPlayerProjectile(dir,w){const mesh=new THREE.Mesh(bulletGeo,new THREE.MeshBasicMaterial({color:w.color}));mesh.position.copy(ship.position).addScaledVector(dir,2.2);scene.add(mesh);const light=spawnLight(w.color,mesh.position,1.6,12);playerBullets.push({mesh,vel:dir.clone().multiplyScalar(w.speed),life:w.life,light,damage:w.damage*(1+stats.damage*.15),homing:w.homing,target:null})}
+function updatePlayerFire(dt){fireCooldown-=dt;const w=WEAPONS[weaponIndex],cooldown=w.cooldown*Math.pow(.88,stats.fireRate)*(perfClock<rapidUntil?.55:1);if(firing&&fireCooldown<=0&&state==='playing'){fireCooldown=cooldown;const aim=getAimDirection();for(let i=0;i<w.count;i++){const dir=aim.dir.clone();if(w.spread){dir.x+=(Math.random()-.5)*w.spread;dir.y+=(Math.random()-.5)*w.spread;dir.z+=(Math.random()-.5)*w.spread;dir.normalize()}spawnPlayerProjectile(dir,w);if(aim.target)playerBullets[playerBullets.length-1].target=aim.target.entity}}}
 
 function updateBulletList(list, dt, isEnemy){
   for (let i=list.length-1;i>=0;i--){
     const b = list[i];
+    if(!isEnemy&&b.homing&&b.target&&drones.includes(b.target)){const desired=b.target.mesh.position.clone().sub(b.mesh.position).normalize(),current=b.vel.clone().normalize();current.lerp(desired,Math.min(1,b.homing*dt*5)).normalize();b.vel.copy(current.multiplyScalar(b.vel.length()))}
     b.mesh.position.addScaledVector(b.vel, dt);
     if (b.light) b.light.position.copy(b.mesh.position);
     b.life -= dt;
@@ -762,11 +784,11 @@ function updateDrones(dt){
     const toPlayer = ship.position.clone().sub(d.mesh.position);
     const dist = toPlayer.length();
     const dir = toPlayer.normalize();
-    const speed = d.boss ? 9 : 13;
-    if (dist > d.preferredDist + 15) d.mesh.position.addScaledVector(dir, speed*dt);
+    const speed=d.boss?9:13,oldPos=d.mesh.position.clone();
+    if(dist>d.preferredDist+15)d.mesh.position.addScaledVector(dir,speed*dt);
     else if (dist < d.preferredDist - 15) d.mesh.position.addScaledVector(dir, -speed*dt*0.8);
-    d.mesh.lookAt(ship.position);
-    d.mesh.rotation.z += dt * (d.boss?0.6:1.4);
+    d.mesh.lookAt(ship.position); d.mesh.rotation.z+=dt*(d.boss?.6:1.4);
+    d.mesh.userData.velocity=d.mesh.position.clone().sub(oldPos).multiplyScalar(1/Math.max(dt,.0001));
 
     if (dist < d.radius + 1.4){
       damagePlayer(d.contactDamage);
@@ -863,7 +885,7 @@ function registerKill(base, pos){
   combo = Math.min(6, combo+1);
   comboTimer = 2.2;
   const gained = base*combo;
-  score += gained;
+  score += gained; awardXP(base>=300?150:(base>=22?30:10));
   scorePopup(pos, '+'+gained, '#ffd23f');
 }
 
@@ -874,7 +896,7 @@ function updateCollisions(dt){
     for (let j=asteroids.length-1;j>=0;j--){
       const a = asteroids[j];
       if (b.mesh.position.distanceTo(a.mesh.position) < a.radius+0.3){
-        a.hp -= 1; burst(b.mesh.position, 0xffe08a, 4);
+        a.hp -= b.damage||1; burst(b.mesh.position, 0xffe08a, 4);
         if (a.hp<=0) killAsteroid(j, true);
         hit = true; break;
       }
@@ -883,7 +905,7 @@ function updateCollisions(dt){
       for (let j=drones.length-1;j>=0;j--){
         const d = drones[j];
         if (b.mesh.position.distanceTo(d.mesh.position) < d.radius+0.3){
-          d.hp -= 1; burst(b.mesh.position, 0xffb0b0, 4);
+          d.hp -= b.damage||1; burst(b.mesh.position, 0xffb0b0, 4);
           if (d.hp<=0) killDrone(j, true);
           hit = true; break;
         }
@@ -1015,7 +1037,7 @@ function updateMinimap(){
 }
 
 /* ================= Game state machine ================= */
-let state = 'menu'; // menu | playing | paused | gameover
+let state='menu'; // menu | playing | paused | levelup | gameover
 let perfClock = 0;
 const clock = new THREE.Clock();
 
@@ -1034,8 +1056,8 @@ function resetWorld(){
   velocity.set(0,0,0);
   yaw=pitch=roll=0;
   mouseYawDelta=0; mousePitchDelta=0;
-  hp = 100; invuln=1.2; boost=100; rapidUntil=-1;
-  score=0; combo=1; comboTimer=0;
+  hp=totalMaxHp();invuln=1.2;boost=totalMaxBoost();rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
+  score=0;combo=1;comboTimer=0;
   wave=1; waveTimer=0; bossActive=false;
 }
 
@@ -1044,19 +1066,17 @@ function startGame(){
   state = 'playing';
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
-  document.getElementById('pause').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('pause').classList.add('hidden');document.getElementById('levelup').classList.add('hidden');document.getElementById('hud').classList.remove('hidden');
   announce('WAVE 1');
   requestFlightControl();
 }
 function endGame(){
-  state = 'gameover';
-  document.getElementById('hud').classList.add('hidden');
+  state='gameover';document.getElementById('levelup').classList.add('hidden');document.getElementById('hud').classList.add('hidden');
   document.getElementById('goStats').innerHTML =
     'SCORE <b>'+score+'</b><br>WAVE REACHED <b>'+wave+'</b><br><span style="color:#7a86a8;font-size:12px;">press R to restart</span>';
   document.getElementById('gameover').classList.remove('hidden');
 }
-function togglePause(){
+function togglePause(){if(state==='levelup')return;
   if (state==='playing'){
     state='paused';
     document.getElementById('pause').classList.remove('hidden');
@@ -1095,8 +1115,9 @@ document.getElementById('resumeBtn').addEventListener('click', ()=>{ if (state==
 /* ================= HUD refresh ================= */
 let fpsAcc=0, fpsFrames=0, fpsShown=0;
 function refreshHud(dt){
-  document.getElementById('hpFill').style.width = Math.max(0,hp)+'%';
-  document.getElementById('boostFill').style.width = boost+'%';
+  document.getElementById('hpFill').style.width=Math.max(0,Math.min(100,hp/totalMaxHp()*100))+'%';
+  document.getElementById('boostFill').style.width=Math.max(0,Math.min(100,boost/totalMaxBoost()*100))+'%';
+  document.getElementById('levelVal').textContent=level;document.getElementById('xpVal').textContent=xp;document.getElementById('xpNext').textContent=xpForLevel(level);document.getElementById('xpFill').style.width=(xp/xpForLevel(level)*100)+'%';document.getElementById('statPointsHud').textContent='STAT POINTS: '+statPoints;document.getElementById('weaponName').textContent=WEAPONS[weaponIndex].name;document.getElementById('aimLock').style.opacity=findAimTarget(ship.position,new THREE.Vector3(0,0,-1).applyQuaternion(ship.quaternion))?'1':'0';
   document.getElementById('waveNum').textContent = wave;
   document.getElementById('hostileCount').textContent = asteroids.length + drones.length;
   document.getElementById('scoreVal').textContent = score;
