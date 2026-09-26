@@ -573,7 +573,9 @@ window.addEventListener('keyup', e=>{ keys[e.code] = false; });
 const MOUSE_SENSITIVITY = 0.0026;
 const PITCH_LIMIT = 1.45; // just short of straight up/down — avoids an Euler gimbal flip
 let mouseYawDelta = 0, mousePitchDelta = 0; // raw input queued since the last physics step
+const isTouchDevice = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 function requestFlightControl(){
+  if(isTouchDevice){document.getElementById('mobileControls').style.display='block';return;}
   if (canvas.requestPointerLock) canvas.requestPointerLock();
 }
 window.addEventListener('mousemove', e=>{
@@ -584,7 +586,7 @@ window.addEventListener('mousemove', e=>{
 document.addEventListener('pointerlockchange', ()=>{
   // Safety net: if the lock drops for any reason mid-flight (ESC, alt-tab,
   // browser UI), auto-pause instead of leaving the ship uncontrollable.
-  if (document.pointerLockElement !== canvas && state === 'playing'){
+  if (!isTouchDevice && document.pointerLockElement !== canvas && state === 'playing'){
     state = 'paused';
     document.getElementById('pause').classList.remove('hidden');
   }
@@ -966,8 +968,8 @@ function updateDrones(dt){
     const oldPos = d.mesh.position.clone();
 
     // Active pursuit: enemies accelerate toward the player instead of simply drifting.
-    const baseSpeed = d.boss ? 15 : 19 + Math.min(wave,12)*0.7;
-    const chaseForce = d.boss ? 1.15 : 1.35;
+    const baseSpeed = d.boss ? 15 : (19 + Math.min(wave,12)*0.7) * d.speed;
+    const chaseForce = d.boss ? 1.15 : (d.type==='sniper'?0.55:d.type==='tank'?0.72:d.type==='interceptor'?1.6:1.35);
     const orbit = new THREE.Vector3(-dir.z, Math.sin(perfClock*1.7 + i)*0.22, dir.x);
     if (dist > d.preferredDist + 10){
       d.mesh.position.addScaledVector(dir, baseSpeed * chaseForce * dt);
@@ -991,12 +993,12 @@ function updateDrones(dt){
     }
 
     d.fireTimer -= dt;
-    const interval = d.boss ? 0.72 : Math.max(0.95, 1.45 - Math.min(wave,10)*0.035);
+    const interval = d.boss ? 0.72 : Math.max(0.72, d.fire - Math.min(wave,10)*0.018);
     if (d.fireTimer <= 0 && dist < 190){
       d.fireTimer = interval;
 
       // Lead the player's movement so enemy fire is actually aimed at the ship.
-      const projectileSpeed = d.boss ? 38 : 50;
+      const projectileSpeed = d.boss ? 38 : (d.type==='sniper'?72:d.type==='bomber'?44:50);
       const travelTime = Math.min(1.25, dist / projectileSpeed);
       const aimPoint = ship.position.clone().addScaledVector(velocity, travelTime * 0.85);
       const aimDir = aimPoint.sub(d.mesh.position).normalize();
@@ -1012,6 +1014,12 @@ function updateDrones(dt){
             (Math.random()-0.5)*spread
           );
           spawnEnemyBullet(d.mesh.position, aimDir.clone().add(side).normalize(), projectileSpeed*0.9);
+        }
+      } else if (d.type==='bomber'){
+        spawnEnemyBullet(d.mesh.position, aimDir, projectileSpeed);
+        for(let k=0;k<3;k++){
+          const spread=new THREE.Vector3((Math.random()-.5)*.24,(Math.random()-.5)*.24,(Math.random()-.5)*.24);
+          spawnEnemyBullet(d.mesh.position,aimDir.clone().add(spread).normalize(),projectileSpeed*.86);
         }
       } else {
         spawnEnemyBullet(d.mesh.position, aimDir, projectileSpeed);
@@ -1039,8 +1047,8 @@ function updateBossHud(){
 }
 function killDrone(index, scored){
   const d = drones[index];
-  burst(d.mesh.position, 0xff6a3a, d.boss?36:14);
-  if(scored){registerKill(d.boss?300:22,d.mesh.position);modernAudioEvent(d.boss?'warning':'hit',d.boss?1.2:.6);if(gameSettings.hitConfirm)showSubtitle(d.boss?'BOSS DESTROYED':'TARGET DESTROYED');}
+  burst(d.mesh.position, d.boss?0xffb703:(ENEMY_CLASSES[d.type]?.color||0xff6a3a), d.boss?36:14);
+  if(scored){registerKill(d.score||22,d.mesh.position);awardXP(d.xp||10);modernAudioEvent(d.boss?'warning':'hit',d.boss?1.2:.6);if(gameSettings.hitConfirm)showSubtitle(d.boss?'BOSS DESTROYED':'TARGET DESTROYED');}
   scene.remove(d.mesh);
   d.mesh.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
   drones.splice(index,1);
@@ -1102,7 +1110,7 @@ function registerKill(base, pos){
   combo = Math.min(6, combo+1);
   comboTimer = 2.2;
   const gained = base*combo;
-  score += gained; awardXP(base>=300?150:(base>=22?30:10));
+  score += gained;
   scorePopup(pos, '+'+gained, '#ffd23f');
 }
 
