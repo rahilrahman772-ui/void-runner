@@ -1137,6 +1137,15 @@ const MISSIONS=[
 ];
 function persistMeta(){localStorage.setItem('voidRunnerCredits',metaCredits);localStorage.setItem('voidRunnerUpgrades',JSON.stringify(metaUpgrades));localStorage.setItem('voidRunnerLifetime',JSON.stringify(lifetime));localStorage.setItem('voidRunnerMission',JSON.stringify(missionProgress));}
 function addCredits(n){metaCredits+=Math.max(0,Math.floor(n));persistMeta();}
+let missionClaimed=Object.assign({},JSON.parse(localStorage.getItem('voidRunnerMissionClaimed')||'{}'));
+function checkMissionRewards(){
+ MISSIONS.forEach(m=>{
+   if(!missionClaimed[m.id] && (missionProgress[m.key]||0)>=m.target){
+     missionClaimed[m.id]=true;addCredits(m.reward);toast(m.name+' COMPLETE +'+m.reward+' CREDITS');modernAudioEvent('level',1);
+   }
+ });
+ localStorage.setItem('voidRunnerMissionClaimed',JSON.stringify(missionClaimed));
+}
 function achievementList(){
  return [
   ['FIRST BLOOD',lifetime.kills>=1,'Destroy your first enemy'],
@@ -1177,6 +1186,7 @@ function buyUpgrade(id){
 
 let rapidUntil = -1;
 let score = 0, combo = 1, comboTimer = 0;
+let runKills=0, runBosses=0;
 let wave = 1, waveTimer = 0;
 const WAVE_DURATION = 24;
 let bossActive = false;
@@ -1198,7 +1208,8 @@ function registerKill(base, pos){
   comboTimer = 2.2;
   const gained = base*combo;
   score += gained;
-  lifetime.kills++; missionProgress.kills++; lifetime.score+=gained; persistMeta();
+  lifetime.kills++; missionProgress.kills++; runKills++; lifetime.score+=gained; persistMeta();
+  checkMissionRewards();
   scorePopup(pos, '+'+gained, '#ffd23f');
 }
 
@@ -1491,7 +1502,7 @@ function resetWorld(){
   yaw=pitch=roll=0;
   mouseYawDelta=0; mousePitchDelta=0;
   hp=totalMaxHp()+metaUpgrades.armor*10;invuln=1.2;boost=totalMaxBoost()+metaUpgrades.engine*8;shield=maxShield()+metaUpgrades.shield*12;shieldDelay=0;rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:metaUpgrades.weapon,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
-  score=0;combo=1;comboTimer=0;
+  score=0;combo=1;comboTimer=0;runKills=0;runBosses=0;
   wave=1; waveTimer=0; bossActive=false; missionProgress.wave=Math.max(missionProgress.wave,wave); lifetime.runs++; persistMeta(); updateEnvironment();
 }
 
@@ -1513,7 +1524,7 @@ function endGame(){
   document.getElementById('levelup').classList.add('hidden');
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('bossHud').classList.remove('show');
-  const reward=Math.floor(score/100)+wave*25+(lifetime.bosses?50:0); addCredits(reward);
+  const reward=Math.floor(score/100)+wave*25+runBosses*50; addCredits(reward);
   document.getElementById('goStats').innerHTML =
     '<div style="font-size:20px;letter-spacing:.12em;margin-bottom:14px">RUN COMPLETE</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 28px;text-align:left">'+
