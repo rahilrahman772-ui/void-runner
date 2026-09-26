@@ -185,6 +185,26 @@
 #mobileUp{right:24px;bottom:112px}
 #mobileDown{right:104px;bottom:182px}
 #mobileHint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font:9px "Consolas",monospace;color:rgba(207,228,245,.65);letter-spacing:.08em}
+/* Responsive display / fullscreen / safe-area support */
+:root{--ui-scale:1}
+html,body{width:100%;height:100%;overflow:hidden}
+#gl{width:100vw;height:100dvh;display:block}
+#hud{font-size:clamp(9px,1.15vw,14px)}
+#score{font-size:clamp(18px,2.4vw,28px)}
+#score span{font-size:clamp(9px,1vw,12px)}
+#combo{font-size:clamp(10px,1.2vw,15px)}
+#weaponHud{font-size:clamp(10px,1.15vw,14px)}
+#topRight{font-size:clamp(10px,1vw,13px)}
+#minimapLabel{font-size:clamp(9px,1vw,12px)}
+#mobileControls{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+@media (orientation:portrait) and (pointer:coarse){
+  #portraitWarning{display:flex}
+}
+#portraitWarning{display:none;position:fixed;inset:0;z-index:100;background:rgba(2,5,14,.94);align-items:center;justify-content:center;text-align:center;padding:28px}
+#portraitWarning .portrait-card{max-width:340px;border:1px solid rgba(47,230,255,.3);background:rgba(8,14,28,.9);padding:28px 22px;box-shadow:0 0 40px rgba(47,230,255,.12)}
+#portraitWarning b{display:block;color:#2fe6ff;font:700 20px "Consolas",monospace;letter-spacing:.12em;margin-bottom:12px}
+#portraitWarning span{color:#cfe4f5;font:12px/1.6 "Consolas",monospace}
+
 @media (max-width:800px),(pointer:coarse){
   #mobileControls{display:block}
   #crosshair{opacity:.7}
@@ -331,6 +351,15 @@
       <div class="setting"><span>VOICE CALLOUTS<small>Combat events + progression</small></span><button class="toggle" id="setVoiceToggle"></button></div>
       <div class="setting"><span>DYNAMIC AUDIO<small>Combat intensity changes sound cues</small></span><button class="toggle" id="setDynamicAudio"></button></div>
     </div>
+    <div class="settings-section">DISPLAY & MOBILE CONTROLS</div>
+    <div class="settings-grid">
+      <div class="setting"><span>FULLSCREEN<small>Use the entire screen on PC and phone</small></span><button id="settingsFullscreen">ENTER</button></div>
+      <div class="setting"><span>ORIENTATION<small>Recommended for the flight cockpit</small></span><button id="settingsOrientation">LANDSCAPE</button></div>
+      <div class="setting"><span>MOTION CONTROLS<small>Tilt your phone to fly when supported</small></span><button class="toggle" id="setGyroToggle"></button></div>
+      <div class="setting"><span>GYRO SENSITIVITY<small>Phone tilt response</small></span><input id="setGyroSensitivity" type="range" min="20" max="180" step="1"><b id="valGyroSensitivity">100%</b></div>
+      <div class="setting"><span>INVERT GYRO PITCH<small>Reverse forward/back tilt</small></span><button class="toggle" id="setGyroInvert"></button></div>
+      <div class="setting"><span>GYRO CALIBRATION<small>Hold the phone in your normal flight position</small></span><button id="settingsCalibrate">CALIBRATE</button></div>
+    </div>
     <div class="settings-section">GAMEPLAY & ACCESSIBILITY</div>
     <div class="settings-grid">
       <div class="setting"><span>AIM ASSIST<small>Smart target lock strength</small></span><input id="setAimAssist" type="range" min="0" max="100" step="1"></div>
@@ -365,6 +394,7 @@
   <button id="resumeBtn" style="pointer-events:auto;cursor:pointer; padding:14px 46px; font:14px/1 'Consolas',monospace; letter-spacing:.18em; text-transform:uppercase; color:#04141a; font-weight:700; background:linear-gradient(90deg,#2fe6ff,#8fffe0); border:none; border-radius:2px; box-shadow:0 0 30px rgba(47,230,255,.35);">Resume</button>
 </div>
 
+<div id="portraitWarning" aria-live="polite"><div class="portrait-card"><b>ROTATE DEVICE</b><span>Void Runner is designed for landscape flight. Turn your phone sideways for the full cockpit view.</span></div></div>
 <div id="mobileControls" aria-label="Touch controls">
   <div id="mobileStick"><div id="mobileKnob"></div></div>
   <button id="mobileFire" class="mobileBtn">FIRE</button>
@@ -424,10 +454,12 @@ scene.fog = new THREE.FogExp2(0x03030c, 0.0034);
 const camera = new THREE.PerspectiveCamera(64, innerWidth/innerHeight, 0.1, 2600);
 
 function resize(){
-  const w = innerWidth, h = innerHeight;
+  const w = Math.max(1,innerWidth), h = Math.max(1,innerHeight);
   camera.aspect = w/h; camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelCap));
-  renderer.setSize(w, h);
+  const dpr=window.devicePixelRatio||1;
+  const mobileCap=isTouchDevice?Math.min(Q.pixelCap,1.35):Q.pixelCap;
+  renderer.setPixelRatio(Math.min(dpr,mobileCap));
+  renderer.setSize(w,h,false);
 }
 window.addEventListener('resize', resize);
 
@@ -608,6 +640,43 @@ const MOUSE_SENSITIVITY = 0.0026;
 const PITCH_LIMIT = 1.45; // just short of straight up/down — avoids an Euler gimbal flip
 let mouseYawDelta = 0, mousePitchDelta = 0; // raw input queued since the last physics step
 const isTouchDevice = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
+let gyroActive=false, gyroListener=null;
+let gyroBaseBeta=0, gyroBaseGamma=0;
+function calibrateGyro(){
+  if(!isTouchDevice){toast('Gyro calibration is for phones/tablets');return;}
+  if(typeof DeviceOrientationEvent==='undefined'){toast('Gyroscope unavailable');return;}
+  toast('Gyro calibrated to current position');
+  if(window.__lastDeviceOrientation){gyroBaseBeta=window.__lastDeviceOrientation.beta||0;gyroBaseGamma=window.__lastDeviceOrientation.gamma||0;}
+  else {gyroBaseBeta=0;gyroBaseGamma=0;}
+  gameSettings.gyroCalX=gyroBaseBeta;gameSettings.gyroCalY=gyroBaseGamma;saveSettings();
+}
+function onDeviceOrientation(e){
+  window.__lastDeviceOrientation=e;
+  if(!gyroActive || state!=='playing')return;
+  const beta=(e.beta||0)-gameSettings.gyroCalX;
+  const gamma=(e.gamma||0)-gameSettings.gyroCalY;
+  const sensitivity=gameSettings.gyroSensitivity/100;
+  mouseYawDelta += gamma * 0.00085 * sensitivity;
+  mousePitchDelta += (gameSettings.gyroInvert?-beta:beta) * 0.00065 * sensitivity;
+}
+function startGyro(){
+  if(gyroActive)return;
+  gyroActive=true;
+  if(!gyroListener){gyroListener=onDeviceOrientation;window.addEventListener('deviceorientation',gyroListener,true);}
+}
+function stopGyro(){gyroActive=false;}
+function toggleFullscreen(){
+  const el=document.documentElement;
+  if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});}
+  else {el.requestFullscreen?.({navigationUI:'hide'}).catch(()=>{toast('Fullscreen unavailable');});}
+}
+async function requestLandscape(){
+  try{if(screen.orientation?.lock)await screen.orientation.lock('landscape');else toast('Rotate the phone to landscape');}
+  catch(e){toast('Rotate the phone to landscape');}
+}
+document.addEventListener('fullscreenchange',()=>{const b=document.getElementById('settingsFullscreen');if(b)b.textContent=document.fullscreenElement?'EXIT':'ENTER';resize();});
+if(gameSettings.gyroEnabled && isTouchDevice)startGyro();
+
 function requestFlightControl(){
   if(isTouchDevice){document.getElementById('mobileControls').style.display='block';return;}
   if (canvas.requestPointerLock) canvas.requestPointerLock();
@@ -1491,7 +1560,7 @@ function updateMinimap(){
 
 
 /* ================= Modern audio + settings ================= */
-const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true};
+const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true,gyroEnabled:false,gyroSensitivity:100,gyroInvert:false,gyroCalX:0,gyroCalY:0};
 let gameSettings=Object.assign({},DEFAULT_SETTINGS);
 try{gameSettings=Object.assign({},DEFAULT_SETTINGS,JSON.parse(localStorage.getItem('voidRunnerSettings')||'{}'));}catch(e){}
 let audioCtx=null,masterGain=null,sfxGain=null,musicGain=null,musicTimer=null,musicStep=0;
@@ -1558,7 +1627,19 @@ function showSubtitle(text){const el=document.getElementById('subtitleBox');if(!
 function speak(text){if(!gameSettings.voiceEnabled||!gameSettings.voice||!('speechSynthesis' in window))return;showSubtitle(text);try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const selected=voiceVoices.find(v=>gameSettings.voiceLang==='auto'||v.lang.toLowerCase().startsWith(gameSettings.voiceLang));if(selected)u.voice=selected;const fx=gameSettings.voiceEffect;u.rate=fx==='command'?.92:fx==='synthetic'?1.12:fx==='radio'?1.03:1;u.pitch=fx==='command'?.72:fx==='synthetic'?1.32:fx==='radio'?.86:1;u.volume=Math.max(0,Math.min(1,gameSettings.master*gameSettings.voice));window.speechSynthesis.speak(u);}catch(e){}}
 function announceVoice(text){speak(text);}
 function updateToggle(id,val){const el=document.getElementById(id);if(el)el.classList.toggle('on',!!val);}
-function syncSettingsUI(){const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake']];pairs.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=gameSettings[key];});document.getElementById('setVoiceEffect').value=gameSettings.voiceEffect;document.getElementById('setVoiceLang').value=gameSettings.voiceLang;updateToggle('setVoiceToggle',gameSettings.voiceEnabled);updateToggle('setDynamicAudio',gameSettings.dynamicAudio);updateToggle('setReducedMotion',gameSettings.reducedMotion);updateToggle('setContrast',gameSettings.contrast);updateToggle('setSubtitles',gameSettings.subtitles);updateToggle('setHitConfirm',gameSettings.hitConfirm);document.documentElement.style.setProperty('--dim',gameSettings.contrast?'#b9c9df':'#7a86a8');}
+function syncSettingsUI(){
+  const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake'],['setGyroSensitivity','gyroSensitivity']];
+  pairs.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=gameSettings[key];});
+  document.getElementById('setVoiceEffect').value=gameSettings.voiceEffect;
+  document.getElementById('setVoiceLang').value=gameSettings.voiceLang;
+  updateToggle('setVoiceToggle',gameSettings.voiceEnabled);updateToggle('setDynamicAudio',gameSettings.dynamicAudio);
+  updateToggle('setReducedMotion',gameSettings.reducedMotion);updateToggle('setContrast',gameSettings.contrast);
+  updateToggle('setSubtitles',gameSettings.subtitles);updateToggle('setHitConfirm',gameSettings.hitConfirm);
+  updateToggle('setGyroToggle',gameSettings.gyroEnabled);updateToggle('setGyroInvert',gameSettings.gyroInvert);
+  const gv=document.getElementById('valGyroSensitivity');if(gv)gv.textContent=Math.round(gameSettings.gyroSensitivity)+'%';
+  document.getElementById('settingsFullscreen').textContent=document.fullscreenElement?'EXIT':'ENTER';
+  document.documentElement.style.setProperty('--dim',gameSettings.contrast?'#b9c9df':'#7a86a8');
+}
 function setToggle(id,key){gameSettings[key]=!gameSettings[key];updateToggle(id,gameSettings[key]);saveSettings();beep('ui');}
 function openSettings(fromState){document.getElementById('settings').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');document.getElementById('pause').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('gameover').classList.add('hidden');document.getElementById('settings').dataset.returnState=fromState||state;syncSettingsUI();['Master','Sfx','Voice','Music'].forEach(k=>{const el=document.getElementById('val'+k);if(el)el.textContent=Math.round(gameSettings[k.toLowerCase()]*100)+'%';});ensureAudio();}
 function closeSettings(){const ret=document.getElementById('settings').dataset.returnState||'menu';document.getElementById('settings').classList.add('hidden');document.getElementById('metaOverlay').classList.add('hidden');if(ret==='paused'){state='paused';document.getElementById('pause').classList.remove('hidden');}else if(ret==='playing'){state='playing';document.getElementById('hud').classList.remove('hidden');requestFlightControl();}else{state='menu';document.getElementById('menu').classList.remove('hidden');}}
@@ -1579,6 +1660,26 @@ document.getElementById('setReducedMotion').addEventListener('click',()=>setTogg
 document.getElementById('setContrast').addEventListener('click',()=>setToggle('setContrast','contrast'));
 document.getElementById('setSubtitles').addEventListener('click',()=>setToggle('setSubtitles','subtitles'));
 document.getElementById('setHitConfirm').addEventListener('click',()=>setToggle('setHitConfirm','hitConfirm'));
+document.getElementById('setGyroToggle').addEventListener('click',async()=>{
+  if(!isTouchDevice){toast('Motion controls are for phones/tablets');return;}
+  try{
+    if(typeof DeviceOrientationEvent==='undefined'){toast('Gyroscope unavailable');return;}
+    if(typeof DeviceOrientationEvent.requestPermission==='function'){
+      const permission=await DeviceOrientationEvent.requestPermission();
+      if(permission!=='granted'){toast('Motion permission denied');return;}
+    }
+    gameSettings.gyroEnabled=!gameSettings.gyroEnabled; updateToggle('setGyroToggle',gameSettings.gyroEnabled); saveSettings();
+    if(gameSettings.gyroEnabled) startGyro(); else stopGyro();
+  }catch(e){toast('Motion controls unavailable');}
+});
+document.getElementById('setGyroInvert').addEventListener('click',()=>setToggle('setGyroInvert','gyroInvert'));
+document.getElementById('setGyroSensitivity').addEventListener('input',e=>{
+  gameSettings.gyroSensitivity=Number(e.target.value);document.getElementById('valGyroSensitivity').textContent=Math.round(gameSettings.gyroSensitivity)+'%';saveSettings();
+});
+document.getElementById('settingsCalibrate').addEventListener('click',()=>calibrateGyro());
+document.getElementById('settingsFullscreen').addEventListener('click',()=>toggleFullscreen());
+document.getElementById('settingsOrientation').addEventListener('click',()=>requestLandscape());
+
 document.getElementById('menuMissions').addEventListener('click',()=>renderMeta('missions'));
 document.getElementById('menuShop').addEventListener('click',()=>renderMeta('shop'));
 document.getElementById('menuAchievements').addEventListener('click',()=>renderMeta('achievements'));
@@ -1763,6 +1864,7 @@ function animate(){
 
 resize();
 setQuality(isTouchDevice ? 'medium' : 'high');
+if(isTouchDevice) requestLandscape();
 animate();
 
 })();
