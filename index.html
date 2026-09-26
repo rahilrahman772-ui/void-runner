@@ -175,7 +175,6 @@
   @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}}
 
   ::selection{ background:transparent; }
-<style>
 #mobileControls{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}
 #mobileStick{position:absolute;left:18px;bottom:24px;width:118px;height:118px;border:2px solid rgba(47,230,255,.35);border-radius:50%;background:rgba(5,10,20,.28);pointer-events:auto;touch-action:none}
 #mobileKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px;border-radius:50%;background:rgba(47,230,255,.25);border:1px solid rgba(47,230,255,.7);box-shadow:0 0 18px rgba(47,230,255,.25)}
@@ -242,7 +241,7 @@ html,body{width:100%;height:100%;overflow:hidden}
   #mobileStick{left:12px;bottom:18px}
   #mobileFire{right:12px;bottom:24px}
 }
-</style></style>
+</style>
 </head>
 <body>
 
@@ -272,7 +271,7 @@ html,body{width:100%;height:100%;overflow:hidden}
     <div>DRAW CALLS <b id="drawCalls">--</b></div>
     <div>TRIANGLES <b id="tris">--</b></div>
     <div>ACTIVE LIGHTS <b id="lightCount">--</b></div>
-    <div>QUALITY <b id="qualityLabel">HIGH</b></div>
+    <div>QUALITY <b id="qualityLabel">AUTO</b></div><div>RENDER <b id="renderModeLabel">AUTO</b></div>
   </div>
 
   <div id="crosshair"></div><div id="aimLock">AIM LOCK</div>
@@ -284,7 +283,7 @@ html,body{width:100%;height:100%;overflow:hidden}
 
 <div id="menu" class="overlay">
   <h1 class="title">VOID RUNNER</h1>
-  <div class="subtitle">A REAL-TIME 3D FLIGHT COMBAT SIM — RENDERED ENTIRELY ON YOUR GPU VIA WEBGL</div>
+  <div class="subtitle">A REAL-TIME 3D FLIGHT COMBAT SIM — ADAPTIVE WEBGL RENDERING</div>
 
   <div class="panel">
     <div class="controls-grid">
@@ -299,7 +298,7 @@ html,body{width:100%;height:100%;overflow:hidden}
   </div>
 
   <div>
-    <div class="hint" style="margin-bottom:10px;">RENDER QUALITY — higher settings push more real-time lighting, shadow maps and geometry through your GPU</div>
+    <div class="hint" style="margin-bottom:10px;">RENDER QUALITY — uses GPU acceleration when available, with a CPU/software-rendering fallback</div>
     <div class="qbtns" id="qualityBtns">
       <div class="qbtn" data-q="low">LOW<small>no shadows · light field</small></div>
       <div class="qbtn" data-q="medium">MEDIUM<small>shadows · fuller field</small></div>
@@ -356,10 +355,6 @@ html,body{width:100%;height:100%;overflow:hidden}
     <div class="settings-grid">
       <div class="setting"><span>FULLSCREEN<small>Use the entire screen on PC and phone</small></span><button id="settingsFullscreen">ENTER</button></div>
       <div class="setting"><span>ORIENTATION<small>Recommended for the flight cockpit</small></span><button id="settingsOrientation">LANDSCAPE</button></div>
-      <div class="setting"><span>MOTION CONTROLS<small>Tilt your phone to fly when supported</small></span><button class="toggle" id="setGyroToggle"></button></div>
-      <div class="setting"><span>GYRO SENSITIVITY<small>Phone tilt response</small></span><input id="setGyroSensitivity" type="range" min="20" max="180" step="1"><b id="valGyroSensitivity">100%</b></div>
-      <div class="setting"><span>INVERT GYRO PITCH<small>Reverse forward/back tilt</small></span><button class="toggle" id="setGyroInvert"></button></div>
-      <div class="setting"><span>GYRO CALIBRATION<small>Hold the phone in your normal flight position</small></span><button id="settingsCalibrate">CALIBRATE</button></div>
     </div>
     <div class="settings-section">GAMEPLAY & ACCESSIBILITY</div>
     <div class="settings-grid">
@@ -442,7 +437,19 @@ let qualityName = 'high';
 let Q = QUALITY[qualityName];
 
 /* ---------------- Renderer / Scene ---------------- */
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+let renderer;
+try{
+  renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias:false,
+    powerPreference:'default',
+    failIfMajorPerformanceCaveat:false,
+    preserveDrawingBuffer:false
+  });
+}catch(err){
+  document.getElementById('gpuHint').textContent='WebGL unavailable — this browser cannot render the 3D game';
+  throw err;
+}
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
@@ -464,15 +471,22 @@ function resize(){
 }
 window.addEventListener('resize', resize);\nwindow.addEventListener('error', e=>console.error('VOID RUNNER ERROR',e.error||e.message));\nwindow.addEventListener('unhandledrejection', e=>console.error('VOID RUNNER PROMISE ERROR',e.reason));
 
-/* GPU hint text on menu */
-(function gpuHint(){
+/* Adaptive renderer detection: GPU acceleration when available,
+   CPU/software WebGL renderers remain supported at a safer quality level. */
+let renderMode='GPU';
+let rendererName='WebGL renderer';
+(function detectRenderer(){
   try{
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-    const name = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-    document.getElementById('gpuHint').textContent = 'detected renderer: ' + name;
+    const gl=renderer.getContext();
+    const dbg=gl.getExtension('WEBGL_debug_renderer_info');
+    rendererName=dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    const s=String(rendererName).toLowerCase();
+    if(/swiftshader|llvmpipe|softpipe|software|mesa.*(swr|soft)/i.test(s)) renderMode='CPU';
+    const hint=document.getElementById('gpuHint');
+    if(hint) hint.textContent=(renderMode==='CPU'?'CPU / SOFTWARE WEBGL':'GPU ACCELERATED WEBGL')+' — '+rendererName;
   }catch(e){
-    document.getElementById('gpuHint').textContent = 'WebGL renderer info unavailable';
+    const hint=document.getElementById('gpuHint');
+    if(hint) hint.textContent='ADAPTIVE WEBGL — renderer details unavailable';
   }
 })();
 
@@ -641,31 +655,6 @@ const MOUSE_SENSITIVITY = 0.0026;
 const PITCH_LIMIT = 1.45; // just short of straight up/down — avoids an Euler gimbal flip
 let mouseYawDelta = 0, mousePitchDelta = 0; // raw input queued since the last physics step
 const isTouchDevice = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
-let gyroActive=false, gyroListener=null;
-let gyroBaseBeta=0, gyroBaseGamma=0;
-function calibrateGyro(){
-  if(!isTouchDevice){toast('Gyro calibration is for phones/tablets');return;}
-  if(typeof DeviceOrientationEvent==='undefined'){toast('Gyroscope unavailable');return;}
-  toast('Gyro calibrated to current position');
-  if(window.__lastDeviceOrientation){gyroBaseBeta=window.__lastDeviceOrientation.beta||0;gyroBaseGamma=window.__lastDeviceOrientation.gamma||0;}
-  else {gyroBaseBeta=0;gyroBaseGamma=0;}
-  gameSettings.gyroCalX=gyroBaseBeta;gameSettings.gyroCalY=gyroBaseGamma;saveSettings();
-}
-function onDeviceOrientation(e){
-  window.__lastDeviceOrientation=e;
-  if(!gyroActive || state!=='playing')return;
-  const beta=(e.beta||0)-gameSettings.gyroCalX;
-  const gamma=(e.gamma||0)-gameSettings.gyroCalY;
-  const sensitivity=gameSettings.gyroSensitivity/100;
-  mouseYawDelta += gamma * 0.00085 * sensitivity;
-  mousePitchDelta += (gameSettings.gyroInvert?-beta:beta) * 0.00065 * sensitivity;
-}
-function startGyro(){
-  if(gyroActive)return;
-  gyroActive=true;
-  if(!gyroListener){gyroListener=onDeviceOrientation;window.addEventListener('deviceorientation',gyroListener,true);}
-}
-function stopGyro(){gyroActive=false;}
 function toggleFullscreen(){
   const el=document.documentElement;
   if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});}
@@ -1561,11 +1550,10 @@ function updateMinimap(){
 
 
 /* ================= Modern audio + settings ================= */
-const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true,gyroEnabled:false,gyroSensitivity:100,gyroInvert:false,gyroCalX:0,gyroCalY:0};
+const DEFAULT_SETTINGS={master:.78,sfx:.82,voice:.88,music:.42,voiceEffect:'radio',voiceLang:'en',voiceEnabled:true,dynamicAudio:true,aimAssist:100,shake:72,reducedMotion:false,contrast:false,subtitles:true,hitConfirm:true};
 let gameSettings=Object.assign({},DEFAULT_SETTINGS);
 try{gameSettings=Object.assign({},DEFAULT_SETTINGS,JSON.parse(localStorage.getItem('voidRunnerSettings')||'{}'));}catch(e){}
 let audioCtx=null,masterGain=null,sfxGain=null,musicGain=null,musicTimer=null,musicStep=0;
-if(gameSettings.gyroEnabled && isTouchDevice) startGyro();
 function ensureAudio(){try{if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();masterGain=audioCtx.createGain();sfxGain=audioCtx.createGain();musicGain=audioCtx.createGain();sfxGain.connect(masterGain);musicGain.connect(masterGain);masterGain.connect(audioCtx.destination);}if(audioCtx.state==='suspended')audioCtx.resume();masterGain.gain.value=gameSettings.master;sfxGain.gain.value=gameSettings.sfx;musicGain.gain.value=gameSettings.music*.34;}catch(e){}}
 function musicNote(freq,time,dur,vol,type='triangle'){
   if(!audioCtx||!musicGain||!gameSettings.music)return;
@@ -1630,7 +1618,7 @@ function speak(text){if(!gameSettings.voiceEnabled||!gameSettings.voice||!('spee
 function announceVoice(text){speak(text);}
 function updateToggle(id,val){const el=document.getElementById(id);if(el)el.classList.toggle('on',!!val);}
 function syncSettingsUI(){
-  const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake'],['setGyroSensitivity','gyroSensitivity']];
+  const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake']];
   pairs.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=gameSettings[key];});
   document.getElementById('setVoiceEffect').value=gameSettings.voiceEffect;
   document.getElementById('setVoiceLang').value=gameSettings.voiceLang;
@@ -1662,23 +1650,6 @@ document.getElementById('setReducedMotion').addEventListener('click',()=>setTogg
 document.getElementById('setContrast').addEventListener('click',()=>setToggle('setContrast','contrast'));
 document.getElementById('setSubtitles').addEventListener('click',()=>setToggle('setSubtitles','subtitles'));
 document.getElementById('setHitConfirm').addEventListener('click',()=>setToggle('setHitConfirm','hitConfirm'));
-document.getElementById('setGyroToggle').addEventListener('click',async()=>{
-  if(!isTouchDevice){toast('Motion controls are for phones/tablets');return;}
-  try{
-    if(typeof DeviceOrientationEvent==='undefined'){toast('Gyroscope unavailable');return;}
-    if(typeof DeviceOrientationEvent.requestPermission==='function'){
-      const permission=await DeviceOrientationEvent.requestPermission();
-      if(permission!=='granted'){toast('Motion permission denied');return;}
-    }
-    gameSettings.gyroEnabled=!gameSettings.gyroEnabled; updateToggle('setGyroToggle',gameSettings.gyroEnabled); saveSettings();
-    if(gameSettings.gyroEnabled) startGyro(); else stopGyro();
-  }catch(e){toast('Motion controls unavailable');}
-});
-document.getElementById('setGyroInvert').addEventListener('click',()=>setToggle('setGyroInvert','gyroInvert'));
-document.getElementById('setGyroSensitivity').addEventListener('input',e=>{
-  gameSettings.gyroSensitivity=Number(e.target.value);document.getElementById('valGyroSensitivity').textContent=Math.round(gameSettings.gyroSensitivity)+'%';saveSettings();
-});
-document.getElementById('settingsCalibrate').addEventListener('click',()=>calibrateGyro());
 document.getElementById('settingsFullscreen').addEventListener('click',()=>toggleFullscreen());
 document.getElementById('menuFullscreenBtn').addEventListener('click',()=>toggleFullscreen());
 document.getElementById('settingsOrientation').addEventListener('click',()=>requestLandscape());
@@ -1782,10 +1753,11 @@ function setQuality(name){
   buildStarfield();
   resize();
   document.getElementById('qualityLabel').textContent = name.toUpperCase();
+  const modeEl=document.getElementById('renderModeLabel'); if(modeEl)modeEl.textContent=renderMode;
   document.querySelectorAll('.qbtn').forEach(b=>b.classList.toggle('active', b.dataset.q===name));
   toast('Render quality: ' + name.toUpperCase());
 }
-document.querySelectorAll('.qbtn').forEach(btn=>{
+document.querySelectorAll('#qualityBtns .qbtn[data-q]').forEach(btn=>{
   btn.addEventListener('click', ()=> setQuality(btn.dataset.q));
 });
 document.getElementById('qualityBtns').classList.add('bound');
@@ -1866,7 +1838,7 @@ function animate(){
 }
 
 resize();
-setQuality(isTouchDevice ? 'medium' : 'high');
+setQuality(renderMode==='CPU' ? 'low' : (isTouchDevice ? 'medium' : 'high'));
 animate();
 
 })();
