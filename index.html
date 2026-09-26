@@ -156,6 +156,7 @@
   .setting span{font:12px/1.35 "Consolas",monospace;color:#d8edf7;text-align:left}
   .setting small{display:block;color:var(--dim);font-size:10px;margin-top:3px}
   .setting input[type=range]{width:150px;accent-color:var(--cyan)}
+  .volume-control{display:flex;align-items:center;gap:6px;min-width:230px}.volume-btn{width:28px;height:28px;padding:0;cursor:pointer;pointer-events:auto;border:1px solid rgba(47,230,255,.3);background:rgba(255,255,255,.04);color:#eaf6ff;font:16px/1 "Consolas",monospace}.volume-btn:hover{border-color:var(--cyan);background:rgba(47,230,255,.1)}
   .setting select,.setting button{font:11px "Consolas",monospace;background:#0b1020;color:#eaf6ff;border:1px solid rgba(47,230,255,.3);padding:7px}
   .toggle{width:46px;height:24px;border:1px solid rgba(255,255,255,.2);background:#171a25;border-radius:14px;position:relative;cursor:pointer;flex:0 0 auto}
   .toggle::after{content:"";position:absolute;width:18px;height:18px;top:2px;left:3px;border-radius:50%;background:#667085;transition:.16s}
@@ -172,7 +173,7 @@
   #bossFill{height:100%;width:100%;background:linear-gradient(90deg,#ff2f4f,#ffb703,#fff06a);box-shadow:0 0 14px rgba(255,183,3,.6);transition:width .08s}
   #bossHpText{font:9px "Consolas",monospace;color:#d8edf7;letter-spacing:.12em;margin-top:4px}
   .gameover-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-  @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}}
+  @media(max-width:700px){.settings-grid{grid-template-columns:1fr}.setting input[type=range]{width:120px}.volume-control{min-width:0;flex:0 0 auto}.volume-control input[type=range]{width:110px}}
 
   ::selection{ background:transparent; }
 #mobileControls{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}
@@ -320,7 +321,7 @@ html,body{width:100%;height:100%;overflow:hidden}
 
 <div id="levelup" class="overlay hidden"><h1 class="title levelup-title">LEVEL UP</h1>
   <div class="levelup-sub">UPGRADE OR SAVE YOUR POINTS · LEVEL <b id="levelUpNumber">2</b></div>
-  <div class="levelup-points">AVAILABLE STAT POINTS: <b id="availableStatPoints">1</b></div>
+  <div class="levelup-points">AVAILABLE STAT POINTS: <b id="availableStatPoints">3</b></div>
   <div id="statChoices">
     <button class="stat-btn" data-stat="damage"><b>WEAPON DAMAGE</b><small>+15% damage · COST <b data-cost="damage">1</b></small></button>
     <button class="stat-btn" data-stat="fireRate"><b>FIRE CONTROL</b><small>+12% fire rate · COST <b data-cost="fireRate">1</b></small></button>
@@ -342,10 +343,10 @@ html,body{width:100%;height:100%;overflow:hidden}
   <div id="settingsPanel" class="panel">
     <div class="settings-section">AUDIO</div>
     <div class="settings-grid">
-      <div class="setting"><span>MASTER VOLUME<small>All game audio · <b id="valMaster">78%</b></small></span><input id="setMaster" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>SFX VOLUME<small>Weapons, hits, UI · <b id="valSfx">82%</b></small></span><input id="setSfx" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>VOICE VOLUME<small>Announcer / combat callouts · <b id="valVoice">88%</b></small></span><input id="setVoice" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>MUSIC VOLUME<small>Adaptive soundtrack · <b id="valMusic">42%</b></small></span><input id="setMusic" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>MASTER VOLUME<small>All game audio · <b id="valMaster">78%</b></small></span><div class="volume-control"><button class="volume-btn" data-volume="master" data-step="-0.05" aria-label="Decrease master volume">−</button><input id="setMaster" type="range" min="0" max="1" step=".01"><button class="volume-btn" data-volume="master" data-step="0.05" aria-label="Increase master volume">+</button></div></div>
+      <div class="setting"><span>SFX VOLUME<small>Weapons, hits, UI · <b id="valSfx">82%</b></small></span><div class="volume-control"><button class="volume-btn" data-volume="sfx" data-step="-0.05" aria-label="Decrease SFX volume">−</button><input id="setSfx" type="range" min="0" max="1" step=".01"><button class="volume-btn" data-volume="sfx" data-step="0.05" aria-label="Increase SFX volume">+</button></div></div>
+      <div class="setting"><span>VOICE VOLUME<small>Announcer / combat callouts · <b id="valVoice">88%</b></small></span><div class="volume-control"><button class="volume-btn" data-volume="voice" data-step="-0.05" aria-label="Decrease voice volume">−</button><input id="setVoice" type="range" min="0" max="1" step=".01"><button class="volume-btn" data-volume="voice" data-step="0.05" aria-label="Increase voice volume">+</button></div></div>
+      <div class="setting"><span>MUSIC VOLUME<small>Adaptive soundtrack · <b id="valMusic">42%</b></small></span><div class="volume-control"><button class="volume-btn" data-volume="music" data-step="-0.05" aria-label="Decrease music volume">−</button><input id="setMusic" type="range" min="0" max="1" step=".01"><button class="volume-btn" data-volume="music" data-step="0.05" aria-label="Increase music volume">+</button></div></div>
       <div class="setting"><span>VOICE EFFECT<small>Pitch/rate treatment for the announcer</small></span><select id="setVoiceEffect"><option value="clean">Clean</option><option value="command">Command</option><option value="radio">Radio</option><option value="synthetic">Synthetic</option></select></div>
       <div class="setting"><span>ANNOUNCER VOICE<small>Browser-installed voice</small></span><select id="setVoiceLang"><option value="en">English</option><option value="auto">Auto</option></select></div>
       <div class="setting"><span>VOICE CALLOUTS<small>Combat events + progression</small></span><button class="toggle" id="setVoiceToggle"></button></div>
@@ -1650,6 +1651,18 @@ document.getElementById('setReducedMotion').addEventListener('click',()=>setTogg
 document.getElementById('setContrast').addEventListener('click',()=>setToggle('setContrast','contrast'));
 document.getElementById('setSubtitles').addEventListener('click',()=>setToggle('setSubtitles','subtitles'));
 document.getElementById('setHitConfirm').addEventListener('click',()=>setToggle('setHitConfirm','hitConfirm'));
+document.querySelectorAll('.volume-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const key=btn.dataset.volume, step=Number(btn.dataset.step)||0;
+    gameSettings[key]=Math.max(0,Math.min(1,Math.round((Number(gameSettings[key])+step)*100)/100));
+    const input=document.getElementById('set'+key.charAt(0).toUpperCase()+key.slice(1));
+    if(input)input.value=gameSettings[key];
+    const label=document.getElementById('val'+key.charAt(0).toUpperCase()+key.slice(1));
+    if(label)label.textContent=Math.round(gameSettings[key]*100)+'%';
+    saveSettings(); ensureAudio();
+    if(key==='voice' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  });
+});
 document.getElementById('settingsFullscreen').addEventListener('click',()=>toggleFullscreen());
 document.getElementById('menuFullscreenBtn').addEventListener('click',()=>toggleFullscreen());
 document.getElementById('settingsOrientation').addEventListener('click',()=>requestLandscape());
