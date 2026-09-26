@@ -271,7 +271,12 @@
     </div>
   </div>
 
-  <button id="menuSettingsBtn" class="qbtn" style="min-width:180px;text-align:center;">SETTINGS<small>audio · voice · accessibility</small></button>
+  <div class="qbtns">
+  <button id="menuMissions" class="qbtn">MISSIONS<small>objectives & rewards</small></button>
+  <button id="menuShop" class="qbtn">VOID MARKET<small>persistent upgrades</small></button>
+  <button id="menuAchievements" class="qbtn">ACHIEVEMENTS<small>milestones & badges</small></button>
+</div>
+<button id="menuSettingsBtn" class="qbtn" style="min-width:180px;text-align:center;">SETTINGS<small>audio · voice · accessibility</small></button>
   <button id="playBtn">Launch</button>
   <div class="hint" id="gpuHint">detecting GPU…</div>
 </div>
@@ -290,15 +295,20 @@
   </div>
 
 
+<div id="metaOverlay" class="overlay hidden">
+  <h1 class="title" id="metaTitle">VOID MARKET</h1>
+  <div id="metaPanel" class="panel" style="max-width:760px;max-height:68vh;overflow:auto"></div>
+  <button id="metaClose" class="qbtn">BACK</button>
+</div>
 <div id="settings" class="overlay hidden">
   <h1 class="title">SETTINGS</h1>
   <div id="settingsPanel" class="panel">
     <div class="settings-section">AUDIO</div>
     <div class="settings-grid">
-      <div class="setting"><span>MASTER VOLUME<small>All game audio</small></span><input id="setMaster" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>SFX VOLUME<small>Weapons, hits, UI</small></span><input id="setSfx" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>VOICE VOLUME<small>Announcer / combat callouts</small></span><input id="setVoice" type="range" min="0" max="1" step=".01"></div>
-      <div class="setting"><span>MUSIC VOLUME<small>Reserved for adaptive soundtrack</small></span><input id="setMusic" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>MASTER VOLUME<small>All game audio · <b id="valMaster">78%</b></small></span><input id="setMaster" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>SFX VOLUME<small>Weapons, hits, UI · <b id="valSfx">82%</b></small></span><input id="setSfx" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>VOICE VOLUME<small>Announcer / combat callouts · <b id="valVoice">88%</b></small></span><input id="setVoice" type="range" min="0" max="1" step=".01"></div>
+      <div class="setting"><span>MUSIC VOLUME<small>Adaptive soundtrack · <b id="valMusic">42%</b></small></span><input id="setMusic" type="range" min="0" max="1" step=".01"></div>
       <div class="setting"><span>VOICE EFFECT<small>Pitch/rate treatment for the announcer</small></span><select id="setVoiceEffect"><option value="clean">Clean</option><option value="command">Command</option><option value="radio">Radio</option><option value="synthetic">Synthetic</option></select></div>
       <div class="setting"><span>ANNOUNCER VOICE<small>Browser-installed voice</small></span><select id="setVoiceLang"><option value="en">English</option><option value="auto">Auto</option></select></div>
       <div class="setting"><span>VOICE CALLOUTS<small>Combat events + progression</small></span><button class="toggle" id="setVoiceToggle"></button></div>
@@ -487,12 +497,18 @@ makeNebulaSky();
 
 /* ---------------- Starfield (GPU point cloud) ---------------- */
 let starPoints = null;
-function buildStarfield(){
+function buildStarfield(zone=0){
   if (starPoints){ scene.remove(starPoints); starPoints.geometry.dispose(); starPoints.material.dispose(); }
   const n = Q.stars;
   const positions = new Float32Array(n*3);
   const colors = new Float32Array(n*3);
-  const palette = [[0.7,0.85,1],[1,0.8,0.9],[0.8,1,0.95],[1,1,1]];
+  const palettes=[
+ [[0.7,0.85,1],[1,0.8,0.9],[0.8,1,0.95],[1,1,1]],
+ [[0.35,0.7,1],[0.5,0.85,1],[0.9,0.65,0.35],[1,1,1]],
+ [[1,0.25,0.75],[0.75,0.35,1],[1,0.55,0.8],[0.8,0.5,1]],
+ [[0.25,1,0.9],[0.2,0.7,1],[0.5,1,0.7],[1,1,1]],
+ [[1,0.45,0.18],[1,0.7,0.25],[1,0.2,0.1],[1,0.85,0.5]]
+]; const palette=palettes[zone%palettes.length];
   for (let i=0;i<n;i++){
     const r = 400 + Math.random()*650;
     const theta = Math.random()*Math.PI*2;
@@ -514,7 +530,7 @@ function buildStarfield(){
   starPoints = new THREE.Points(geo, mat);
   scene.add(starPoints);
 }
-buildStarfield();
+buildStarfield(0);
 
 /* ================= Player ship ================= */
 const ship = new THREE.Group();
@@ -1110,6 +1126,55 @@ function applyPowerup(kind){
 
 /* ================= Player state / combat ================= */
 let hp = 100, invuln = 0;
+let metaCredits=Number(localStorage.getItem('voidRunnerCredits')||0);
+let metaUpgrades=Object.assign({armor:0,engine:0,weapon:0,shield:0},JSON.parse(localStorage.getItem('voidRunnerUpgrades')||'{}'));
+let lifetime=Object.assign({kills:0,bosses:0,waves:0,runs:0,score:0},JSON.parse(localStorage.getItem('voidRunnerLifetime')||'{}'));
+let missionProgress=Object.assign({kills:0,wave:0,bosses:0},JSON.parse(localStorage.getItem('voidRunnerMission')||'{}'));
+const MISSIONS=[
+ {id:'kills',name:'FIRST HUNT',desc:'Destroy 25 enemies',target:25,reward:250,key:'kills'},
+ {id:'wave',name:'DEEP RUN',desc:'Reach wave 10',target:10,reward:400,key:'wave'},
+ {id:'boss',name:'WARDEN BREAKER',desc:'Destroy 2 Wardens',target:2,reward:600,key:'bosses'}
+];
+function persistMeta(){localStorage.setItem('voidRunnerCredits',metaCredits);localStorage.setItem('voidRunnerUpgrades',JSON.stringify(metaUpgrades));localStorage.setItem('voidRunnerLifetime',JSON.stringify(lifetime));localStorage.setItem('voidRunnerMission',JSON.stringify(missionProgress));}
+function addCredits(n){metaCredits+=Math.max(0,Math.floor(n));persistMeta();}
+function achievementList(){
+ return [
+  ['FIRST BLOOD',lifetime.kills>=1,'Destroy your first enemy'],
+  ['BOSS BREAKER',lifetime.bosses>=1,'Destroy your first Warden'],
+  ['VOID SURVIVOR',lifetime.waves>=10,'Reach wave 10'],
+  ['ACE PILOT',lifetime.kills>=100,'Destroy 100 enemies'],
+  ['HIGH ROLLER',lifetime.score>=50000,'Earn 50,000 lifetime score'],
+  ['VETERAN',lifetime.runs>=10,'Complete 10 runs']
+ ];
+}
+function renderMeta(kind){
+ const title=document.getElementById('metaTitle'),panel=document.getElementById('metaPanel');
+ if(kind==='shop'){
+  title.textContent='VOID MARKET';
+  const items=[
+   ['weapon','WEAPON CORE','+8% starting damage',300+metaUpgrades.weapon*300],
+   ['armor','ARMOR PLATING','+10 starting hull',250+metaUpgrades.armor*250],
+   ['engine','ENGINE CORE','+8 starting boost',250+metaUpgrades.engine*250],
+   ['shield','SHIELD MATRIX','+12 starting shield',300+metaUpgrades.shield*300]
+  ];
+  panel.innerHTML='<div style="text-align:left;margin-bottom:12px;color:#ffd23f;font:16px Consolas">CREDITS: '+metaCredits+'</div>'+
+    items.map(x=>'<button class="qbtn shop-buy" data-id="'+x[0]+'" style="width:100%;margin:5px 0"><b>'+x[1]+'</b><small>'+x[2]+' · COST '+x[3]+'</small></button>').join('');
+  panel.querySelectorAll('.shop-buy').forEach(b=>b.onclick=()=>buyUpgrade(b.dataset.id));
+ }else if(kind==='missions'){
+  title.textContent='MISSIONS';
+  panel.innerHTML=MISSIONS.map(m=>{const p=Math.min(m.target,missionProgress[m.key]||0),done=p>=m.target;return '<div style="text-align:left;padding:12px;border-bottom:1px solid #223; margin-bottom:5px"><b>'+m.name+'</b><div style="color:#9aa8c7;font-size:11px;margin:5px 0">'+m.desc+'</div><div>'+p+' / '+m.target+(done?' · COMPLETE':'')+'</div></div>'}).join('');
+ }else{
+  title.textContent='ACHIEVEMENTS';
+  panel.innerHTML=achievementList().map(a=>'<div style="text-align:left;padding:12px;border-bottom:1px solid #223;margin-bottom:5px"><b>'+a[0]+'</b><div style="color:#9aa8c7;font-size:11px;margin-top:4px">'+a[2]+'</div><div style="color:'+(a[1]?'#6cff9c':'#667085')+';font-size:11px;margin-top:5px">'+(a[1]?'UNLOCKED':'LOCKED')+'</div></div>').join('');
+ }
+ document.getElementById('metaOverlay').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');
+}
+function buyUpgrade(id){
+ const costs={weapon:()=>300+metaUpgrades.weapon*300,armor:()=>250+metaUpgrades.armor*250,engine:()=>250+metaUpgrades.engine*250,shield:()=>300+metaUpgrades.shield*300};
+ const cost=costs[id]();if(metaCredits<cost){toast('Not enough credits');return}
+ metaCredits-=cost;metaUpgrades[id]++;persistMeta();renderMeta('shop');modernAudioEvent('power',1);toast('Upgrade purchased');
+}
+
 let rapidUntil = -1;
 let score = 0, combo = 1, comboTimer = 0;
 let wave = 1, waveTimer = 0;
@@ -1133,6 +1198,7 @@ function registerKill(base, pos){
   comboTimer = 2.2;
   const gained = base*combo;
   score += gained;
+  lifetime.kills++; missionProgress.kills++; lifetime.score+=gained; persistMeta();
   scorePopup(pos, '+'+gained, '#ffd23f');
 }
 
@@ -1172,6 +1238,9 @@ function updateCollisions(dt){
 
 function updateEnvironment(){
   const zone=((wave-1)%5);
+  const backgrounds=[0x03030c,0x06152b,0x19051f,0x062022,0x260b04];
+  scene.background=new THREE.Color(backgrounds[zone]);
+  buildStarfield(zone);
   const colors=[0x03030c,0x071225,0x16051d,0x0b1720,0x180b08];
   const fogs=[.0034,.0030,.0026,.0031,.0028];
   scene.fog.color.setHex(colors[zone]);
@@ -1187,7 +1256,7 @@ function updateEnvironment(){
 function updateWaves(dt){
   waveTimer += dt;
   if (waveTimer >= WAVE_DURATION && !bossActive){
-    waveTimer = 0; wave++; updateEnvironment(); announce('WAVE '+wave+' // '+document.getElementById('banner').dataset.zone);
+    waveTimer = 0; wave++; missionProgress.wave=Math.max(missionProgress.wave,wave); lifetime.waves=Math.max(lifetime.waves,wave); persistMeta(); updateEnvironment(); announce('WAVE '+wave+' // '+document.getElementById('banner').dataset.zone);
   }
   if (wave % 5 === 0 && !bossActive && drones.filter(d=>d.boss).length===0){
     bossActive = true;
@@ -1369,10 +1438,17 @@ function announceVoice(text){speak(text);}
 function updateToggle(id,val){const el=document.getElementById(id);if(el)el.classList.toggle('on',!!val);}
 function syncSettingsUI(){const pairs=[['setMaster','master'],['setSfx','sfx'],['setVoice','voice'],['setMusic','music'],['setAimAssist','aimAssist'],['setShake','shake']];pairs.forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=gameSettings[key];});document.getElementById('setVoiceEffect').value=gameSettings.voiceEffect;document.getElementById('setVoiceLang').value=gameSettings.voiceLang;updateToggle('setVoiceToggle',gameSettings.voiceEnabled);updateToggle('setDynamicAudio',gameSettings.dynamicAudio);updateToggle('setReducedMotion',gameSettings.reducedMotion);updateToggle('setContrast',gameSettings.contrast);updateToggle('setSubtitles',gameSettings.subtitles);updateToggle('setHitConfirm',gameSettings.hitConfirm);document.documentElement.style.setProperty('--dim',gameSettings.contrast?'#b9c9df':'#7a86a8');}
 function setToggle(id,key){gameSettings[key]=!gameSettings[key];updateToggle(id,gameSettings[key]);saveSettings();beep('ui');}
-function openSettings(fromState){document.getElementById('settings').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');document.getElementById('pause').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('gameover').classList.add('hidden');document.getElementById('settings').dataset.returnState=fromState||state;syncSettingsUI();ensureAudio();}
-function closeSettings(){const ret=document.getElementById('settings').dataset.returnState||'menu';document.getElementById('settings').classList.add('hidden');if(ret==='paused'){state='paused';document.getElementById('pause').classList.remove('hidden');}else if(ret==='playing'){state='playing';document.getElementById('hud').classList.remove('hidden');requestFlightControl();}else{state='menu';document.getElementById('menu').classList.remove('hidden');}}
+function openSettings(fromState){document.getElementById('settings').classList.remove('hidden');document.getElementById('menu').classList.add('hidden');document.getElementById('pause').classList.add('hidden');document.getElementById('hud').classList.add('hidden');document.getElementById('gameover').classList.add('hidden');document.getElementById('settings').dataset.returnState=fromState||state;syncSettingsUI();['Master','Sfx','Voice','Music'].forEach(k=>{const el=document.getElementById('val'+k);if(el)el.textContent=Math.round(gameSettings[k.toLowerCase()]*100)+'%';});ensureAudio();}
+function closeSettings(){const ret=document.getElementById('settings').dataset.returnState||'menu';document.getElementById('settings').classList.add('hidden');document.getElementById('metaOverlay').classList.add('hidden');if(ret==='paused'){state='paused';document.getElementById('pause').classList.remove('hidden');}else if(ret==='playing'){state='playing';document.getElementById('hud').classList.remove('hidden');requestFlightControl();}else{state='menu';document.getElementById('menu').classList.remove('hidden');}}
 function resetSettings(){gameSettings=Object.assign({},DEFAULT_SETTINGS);saveSettings();syncSettingsUI();ensureAudio();beep('ui');toast('Settings reset');}
-['setMaster','setSfx','setVoice','setMusic','setAimAssist','setShake'].forEach(id=>{document.getElementById(id).addEventListener('input',e=>{const key=id.replace('set','');const k=key.charAt(0).toLowerCase()+key.slice(1);gameSettings[k]=Number(e.target.value);saveSettings();ensureAudio();});});
+['setMaster','setSfx','setVoice','setMusic','setAimAssist','setShake'].forEach(id=>{
+ const el=document.getElementById(id); if(!el)return;
+ el.addEventListener('input',e=>{
+   const key=id.replace('set',''); const k=key.charAt(0).toLowerCase()+key.slice(1);
+   gameSettings[k]=Number(e.target.value); saveSettings(); ensureAudio();
+   const v=document.getElementById('val'+key); if(v && ['master','sfx','voice','music'].includes(k))v.textContent=Math.round(gameSettings[k]*100)+'%';
+ });
+});
 document.getElementById('setVoiceEffect').addEventListener('change',e=>{gameSettings.voiceEffect=e.target.value;saveSettings();});
 document.getElementById('setVoiceLang').addEventListener('change',e=>{gameSettings.voiceLang=e.target.value;saveSettings();});
 document.getElementById('setVoiceToggle').addEventListener('click',()=>setToggle('setVoiceToggle','voiceEnabled'));
@@ -1381,6 +1457,10 @@ document.getElementById('setReducedMotion').addEventListener('click',()=>setTogg
 document.getElementById('setContrast').addEventListener('click',()=>setToggle('setContrast','contrast'));
 document.getElementById('setSubtitles').addEventListener('click',()=>setToggle('setSubtitles','subtitles'));
 document.getElementById('setHitConfirm').addEventListener('click',()=>setToggle('setHitConfirm','hitConfirm'));
+document.getElementById('menuMissions').addEventListener('click',()=>renderMeta('missions'));
+document.getElementById('menuShop').addEventListener('click',()=>renderMeta('shop'));
+document.getElementById('menuAchievements').addEventListener('click',()=>renderMeta('achievements'));
+document.getElementById('metaClose').addEventListener('click',()=>{document.getElementById('metaOverlay').classList.add('hidden');document.getElementById('menu').classList.remove('hidden');});
 document.getElementById('settingsClose').addEventListener('click',closeSettings);
 document.getElementById('settingsReset').addEventListener('click',resetSettings);
 document.getElementById('settingsTestVoice').addEventListener('click',()=>{ensureAudio();speak('Weapons hot. Void Runner systems online.');beep('ui');});
@@ -1410,9 +1490,9 @@ function resetWorld(){
   velocity.set(0,0,0);
   yaw=pitch=roll=0;
   mouseYawDelta=0; mousePitchDelta=0;
-  hp=totalMaxHp();invuln=1.2;boost=totalMaxBoost();shield=maxShield();shieldDelay=0;rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:0,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
+  hp=totalMaxHp()+metaUpgrades.armor*10;invuln=1.2;boost=totalMaxBoost()+metaUpgrades.engine*8;shield=maxShield()+metaUpgrades.shield*12;shieldDelay=0;rapidUntil=-1;level=1;xp=0;statPoints=0;stats={damage:metaUpgrades.weapon,fireRate:0,hull:0,boost:0,aim:0};weaponIndex=0;
   score=0;combo=1;comboTimer=0;
-  wave=1; waveTimer=0; bossActive=false; updateEnvironment();
+  wave=1; waveTimer=0; bossActive=false; missionProgress.wave=Math.max(missionProgress.wave,wave); lifetime.runs++; persistMeta(); updateEnvironment();
 }
 
 function startGame(){
@@ -1433,8 +1513,12 @@ function endGame(){
   document.getElementById('levelup').classList.add('hidden');
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('bossHud').classList.remove('show');
+  const reward=Math.floor(score/100)+wave*25+(lifetime.bosses?50:0); addCredits(reward);
   document.getElementById('goStats').innerHTML =
-    'SCORE <b>'+score+'</b><br>WAVE REACHED <b>'+wave+'</b><br><span style="color:#7a86a8;font-size:12px;">press R to restart</span>';
+    '<div style="font-size:20px;letter-spacing:.12em;margin-bottom:14px">RUN COMPLETE</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 28px;text-align:left">'+
+    '<span>SCORE</span><b>'+score+'</b><span>WAVE REACHED</span><b>'+wave+'</b><span>LEVEL</span><b>'+level+'</b><span>ENEMIES DESTROYED</span><b>'+missionProgress.kills+'</b><span>BOSSES</span><b>'+missionProgress.bosses+'</b><span>CREDITS EARNED</span><b style="color:#ffd23f">+'+reward+'</b><span>TOTAL CREDITS</span><b style="color:#ffd23f">'+metaCredits+'</b></div>'+
+    '<div style="margin-top:16px;color:#7a86a8;font-size:11px">Your permanent market upgrades and achievements are saved automatically.</div>';
   document.getElementById('gameover').classList.remove('hidden');
 }
 function returnToMenu(){
