@@ -612,6 +612,100 @@ function requestFlightControl(){
   if(isTouchDevice){document.getElementById('mobileControls').style.display='block';return;}
   if (canvas.requestPointerLock) canvas.requestPointerLock();
 }
+/* ---------------- Touch flight controls ----------------
+   Mobile browsers do not provide pointer lock, so touch input is
+   translated into the same keyboard/look state used by desktop. */
+const mobileStick = document.getElementById('mobileStick');
+const mobileKnob = document.getElementById('mobileKnob');
+const mobileFire = document.getElementById('mobileFire');
+const mobileBoost = document.getElementById('mobileBoost');
+const mobileUp = document.getElementById('mobileUp');
+const mobileDown = document.getElementById('mobileDown');
+
+let stickPointerId = null;
+let aimPointerId = null;
+let stickX = 0, stickY = 0;
+let lastAimX = 0, lastAimY = 0;
+
+function setKey(code, value){ keys[code] = value; }
+
+function resetStick(){
+  stickX = 0; stickY = 0;
+  setKey('KeyW', false); setKey('KeyS', false);
+  setKey('KeyA', false); setKey('KeyD', false);
+  if(mobileKnob) mobileKnob.style.transform='translate(0px,0px)';
+}
+
+function updateStick(e){
+  const r = mobileStick.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  const max = r.width * .38;
+  let dx = e.clientX-cx, dy = e.clientY-cy;
+  const len = Math.hypot(dx,dy);
+  if(len>max){ dx=dx/len*max; dy=dy/len*max; }
+  stickX = dx/max; stickY = dy/max;
+  setKey('KeyA', stickX < -.22);
+  setKey('KeyD', stickX > .22);
+  setKey('KeyW', stickY < -.22);
+  setKey('KeyS', stickY > .22);
+  mobileKnob.style.transform=`translate(${dx}px,${dy}px)`;
+}
+
+if(mobileStick){
+  mobileStick.addEventListener('pointerdown',e=>{
+    if(!isTouchDevice || state!=='playing') return;
+    stickPointerId=e.pointerId;
+    mobileStick.setPointerCapture?.(e.pointerId);
+    updateStick(e);
+    e.preventDefault();
+  });
+  mobileStick.addEventListener('pointermove',e=>{
+    if(e.pointerId===stickPointerId){ updateStick(e); e.preventDefault(); }
+  });
+  const releaseStick=e=>{
+    if(e.pointerId===stickPointerId){ stickPointerId=null; resetStick(); e.preventDefault(); }
+  };
+  mobileStick.addEventListener('pointerup',releaseStick);
+  mobileStick.addEventListener('pointercancel',releaseStick);
+}
+
+function bindHoldButton(el, onDown, onUp){
+  if(!el) return;
+  const down=e=>{ if(state!=='playing') return; onDown(); el.setPointerCapture?.(e.pointerId); e.preventDefault(); };
+  const up=e=>{ onUp(); e.preventDefault(); };
+  el.addEventListener('pointerdown',down);
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointercancel',up);
+  el.addEventListener('pointerleave',e=>{ if(e.buttons===0) onUp(); });
+}
+
+bindHoldButton(mobileFire,()=>{firing=true},()=>{firing=false});
+bindHoldButton(mobileBoost,()=>{setKey('KeyW',true);},()=>{setKey('KeyW',false);});
+bindHoldButton(mobileUp,()=>{setKey('Space',true);},()=>{setKey('Space',false);});
+bindHoldButton(mobileDown,()=>{setKey('ShiftRight',true);},()=>{setKey('ShiftRight',false);});
+
+if(isTouchDevice){
+  canvas.style.touchAction='none';
+  canvas.addEventListener('pointerdown',e=>{
+    if(state!=='playing' || e.pointerType!=='touch') return;
+    aimPointerId=e.pointerId; lastAimX=e.clientX; lastAimY=e.clientY;
+    canvas.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  },{passive:false});
+  canvas.addEventListener('pointermove',e=>{
+    if(e.pointerId!==aimPointerId || e.pointerType!=='touch') return;
+    mouseYawDelta -= (e.clientX-lastAimX)*MOUSE_SENSITIVITY;
+    mousePitchDelta += (e.clientY-lastAimY)*MOUSE_SENSITIVITY;
+    lastAimX=e.clientX; lastAimY=e.clientY;
+    e.preventDefault();
+  },{passive:false});
+  const releaseAim=e=>{
+    if(e.pointerId===aimPointerId){ aimPointerId=null; e.preventDefault(); }
+  };
+  canvas.addEventListener('pointerup',releaseAim,{passive:false});
+  canvas.addEventListener('pointercancel',releaseAim,{passive:false});
+}
+
 window.addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas) return;
   mouseYawDelta   -= e.movementX * MOUSE_SENSITIVITY;
@@ -1668,7 +1762,7 @@ function animate(){
 }
 
 resize();
-setQuality('high');
+setQuality(isTouchDevice ? 'medium' : 'high');
 animate();
 
 })();
